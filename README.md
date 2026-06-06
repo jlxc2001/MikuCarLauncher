@@ -1,16 +1,17 @@
-# MikuCarLauncher / A4L车机桌面 v2
+# MikuCarLauncher / A4L车机桌面 v3
 
-v2 重点修复：
+第一版素材接入版：使用用户提供的白色 Audi A4L 主视觉图片，重排首页主视觉区域，继续保留车辆数据读取、左侧导航、导航小组件容器、音乐信息、蓝牙卡片、常用应用、车辆状态和天气卡片。
 
-- 重新调整首页视觉比例，更接近 2560×720 参考图：左侧栏、导航卡片、音乐卡片、蓝牙卡片、常用应用、右侧 Racing Miku/A4L 横幅、车辆状态卡片、天气卡片。
-- 内置 Racing Miku + A4L 横幅素材，用作右侧主视觉背景。
-- 修复“选择小组件”逻辑：不再直接调用系统通用小组件选择器，改为软件内列出当前系统可用小组件，再绑定到导航卡片。
-- 如果系统拒绝绑定小组件，会提示用户将本软件设为默认主页，或通过 ADB 授权 appwidget 绑定。
+## 当前重点
 
-ADB 授权小组件绑定备用命令：
+- 2560×720 横屏全屏适配
+- 左侧：首页 / 导航 / 音乐 / 车辆 / 全景 / 应用 / 我的
+- 车辆按钮打开 `com.ts.MainUI/com.ts.can.audi.xhd.CanAudiWithCDExdActivity`
+- 全景按钮打开 `com.baony.avm360/com.baony.ui.activity.AVMBVActivity`
+- 主视觉区域接入 `a4l_hero_main.png`
+- 车辆数据继续通过 `com.ts.can.carinfo.CarInfoService` 和 `TsCarService` 读取
+- 小组件容器保留，后续继续针对车机 ROM 调整
 
-```bash
-adb shell appwidget grantbind --package com.jlxc.a4ldashboard
-```
+## 编译
 
-如果车机系统不支持 `grantbind`，请先把本软件设为默认主页，再重新点击“选择小组件”。
+GitHub Actions → Build APK → Run workflow。

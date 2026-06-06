@@ -202,7 +202,7 @@ public class MainActivity extends Activity {
         sideBar.setOrientation(LinearLayout.VERTICAL);
         sideBar.setPadding(dp(8), dp(10), dp(8), dp(10));
         sideBar.setBackgroundColor(cardColor());
-        root.addView(sideBar, new LinearLayout.LayoutParams(dp(122), -1));
+        root.addView(sideBar, new LinearLayout.LayoutParams(dp(112), -1));
         buildSideBar();
 
         contentRoot = new FrameLayout(this);
@@ -213,8 +213,8 @@ public class MainActivity extends Activity {
     private void buildSideBar() {
         sideBar.removeAllViews();
         TextView logo = new TextView(this);
-        logo.setText("Audi\nA4L");
-        logo.setTextSize(20);
+        logo.setText("○○○○\nA4L");
+        logo.setTextSize(19);
         logo.setTypeface(Typeface.DEFAULT_BOLD);
         logo.setTextColor(textColor());
         logo.setGravity(Gravity.CENTER);
@@ -251,11 +251,11 @@ public class MainActivity extends Activity {
 
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
-        page.addView(left, new LinearLayout.LayoutParams(dp(700), -1));
+        page.addView(left, new LinearLayout.LayoutParams(dp(720), -1));
 
         LinearLayout topLeft = new LinearLayout(this);
         topLeft.setOrientation(LinearLayout.HORIZONTAL);
-        left.addView(topLeft, new LinearLayout.LayoutParams(-1, dp(420)));
+        left.addView(topLeft, new LinearLayout.LayoutParams(-1, dp(410)));
         topLeft.addView(naviCard(), new LinearLayout.LayoutParams(0, -1, 1.20f));
         LinearLayout musicBt = new LinearLayout(this);
         musicBt.setOrientation(LinearLayout.VERTICAL);
@@ -269,7 +269,7 @@ public class MainActivity extends Activity {
         right.setOrientation(LinearLayout.VERTICAL);
         right.setPadding(dp(16), 0, 0, 0);
         page.addView(right, new LinearLayout.LayoutParams(0, -1, 1));
-        right.addView(heroCard(), new LinearLayout.LayoutParams(-1, dp(390)));
+        right.addView(heroCard(), new LinearLayout.LayoutParams(-1, dp(405)));
 
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.HORIZONTAL);
@@ -399,10 +399,20 @@ public class MainActivity extends Activity {
         box.setBackground(round(nightMode ? 0xff111820 : 0x00ffffff, dp(22), 0));
 
         ImageView bgImg = new ImageView(this);
-        bgImg.setImageResource(getResources().getIdentifier("hero_miku_a4l", "drawable", getPackageName()));
-        bgImg.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        bgImg.setAlpha(nightMode ? 0.72f : 0.86f);
+        bgImg.setImageResource(getResources().getIdentifier("a4l_hero_main", "drawable", getPackageName()));
+        bgImg.setScaleType(ImageView.ScaleType.FIT_XY);
+        bgImg.setAlpha(nightMode ? 0.78f : 1.0f);
         box.addView(bgImg, new FrameLayout.LayoutParams(-1, -1));
+
+        TextView mikuTitle = new TextView(this);
+        mikuTitle.setText("RACING MIKU\n2025");
+        mikuTitle.setTextSize(38);
+        mikuTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        mikuTitle.setTextColor(nightMode ? 0xffff9bd4 : 0xffff8fc8);
+        mikuTitle.setGravity(Gravity.CENTER);
+        FrameLayout.LayoutParams mikuLp = new FrameLayout.LayoutParams(dp(430), dp(135), Gravity.RIGHT | Gravity.TOP);
+        mikuLp.setMargins(0, dp(30), dp(78), 0);
+        box.addView(mikuTitle, mikuLp);
 
         LinearLayout overlay = new LinearLayout(this);
         overlay.setOrientation(LinearLayout.VERTICAL);
@@ -420,7 +430,7 @@ public class MainActivity extends Activity {
         ownerSubText = smallText("专注当下，尽享驾驶", 16, false);
         greeting.addView(greetingText, new LinearLayout.LayoutParams(-1, dp(58)));
         greeting.addView(ownerSubText, new LinearLayout.LayoutParams(-1, dp(32)));
-        top.addView(greeting, new LinearLayout.LayoutParams(dp(310), dp(100)));
+        top.addView(greeting, new LinearLayout.LayoutParams(dp(470), dp(100)));
 
         TextView spacer = new TextView(this);
         top.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
@@ -433,7 +443,7 @@ public class MainActivity extends Activity {
         actions.addView(actionButton("运动模式", "▰", v -> launchConfigured("sport")));
         actions.addView(actionButton("行车记录仪", "▣", v -> toast("后续可绑定记录仪 App")));
         actions.addView(actionButton("Gear 设置", "⚙", v -> showSettingsDialog()));
-        overlay.addView(actions, new LinearLayout.LayoutParams(dp(620), dp(88)));
+        overlay.addView(actions, new LinearLayout.LayoutParams(dp(680), dp(88)));
         return box;
     }
 
