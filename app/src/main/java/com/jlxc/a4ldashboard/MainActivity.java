@@ -75,6 +75,7 @@ public class MainActivity extends Activity {
     private static final int HOST_ID = 41101;
     private static final int REQ_PICK_WIDGET = 501;
     private static final int REQ_CONFIG_WIDGET = 502;
+    private static final int REQ_BIND_WIDGET = 503;
 
     private static final String PKG_MAIN_UI = "com.ts.MainUI";
     private static final String ACTION_CAR_INFO = "com.ts.can.carinfo.CarInfoService";
@@ -96,6 +97,8 @@ public class MainActivity extends Activity {
 
     private AppWidgetManager widgetManager;
     private AppWidgetHost widgetHost;
+    private int pendingWidgetId = -1;
+    private AppWidgetProviderInfo pendingWidgetInfo = null;
     private FrameLayout navWidgetBox;
 
     private boolean nightMode = false;
@@ -199,7 +202,7 @@ public class MainActivity extends Activity {
         sideBar.setOrientation(LinearLayout.VERTICAL);
         sideBar.setPadding(dp(8), dp(10), dp(8), dp(10));
         sideBar.setBackgroundColor(cardColor());
-        root.addView(sideBar, new LinearLayout.LayoutParams(dp(128), -1));
+        root.addView(sideBar, new LinearLayout.LayoutParams(dp(122), -1));
         buildSideBar();
 
         contentRoot = new FrameLayout(this);
@@ -211,11 +214,11 @@ public class MainActivity extends Activity {
         sideBar.removeAllViews();
         TextView logo = new TextView(this);
         logo.setText("Audi\nA4L");
-        logo.setTextSize(21);
+        logo.setTextSize(20);
         logo.setTypeface(Typeface.DEFAULT_BOLD);
         logo.setTextColor(textColor());
         logo.setGravity(Gravity.CENTER);
-        sideBar.addView(logo, new LinearLayout.LayoutParams(-1, dp(72)));
+        sideBar.addView(logo, new LinearLayout.LayoutParams(-1, dp(82)));
         sideButton("⌂\n首页", v -> showHomePage());
         sideButton("➤\n导航", v -> launchConfigured("nav"));
         sideButton("♪\n音乐", v -> launchMusicApp());
@@ -229,7 +232,7 @@ public class MainActivity extends Activity {
         TextView b = new TextView(this);
         b.setText(text);
         b.setGravity(Gravity.CENTER);
-        b.setTextSize(15);
+        b.setTextSize(14);
         b.setTextColor(textColor());
         b.setOnClickListener(l);
         b.setBackground(round(0x00ffffff, dp(12), 0));
@@ -242,36 +245,31 @@ public class MainActivity extends Activity {
         contentRoot.removeAllViews();
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.HORIZONTAL);
-        page.setPadding(dp(16), dp(14), dp(18), dp(14));
+        page.setPadding(dp(14), dp(12), dp(14), dp(12));
         page.setBackgroundColor(colorBg());
         contentRoot.addView(page, new FrameLayout.LayoutParams(-1, -1));
 
         LinearLayout left = new LinearLayout(this);
         left.setOrientation(LinearLayout.VERTICAL);
-        page.addView(left, new LinearLayout.LayoutParams(dp(705), -1));
+        page.addView(left, new LinearLayout.LayoutParams(dp(700), -1));
 
         LinearLayout topLeft = new LinearLayout(this);
         topLeft.setOrientation(LinearLayout.HORIZONTAL);
-        left.addView(topLeft, new LinearLayout.LayoutParams(-1, dp(380)));
-        topLeft.addView(naviCard(), new LinearLayout.LayoutParams(0, -1, 1.05f));
+        left.addView(topLeft, new LinearLayout.LayoutParams(-1, dp(420)));
+        topLeft.addView(naviCard(), new LinearLayout.LayoutParams(0, -1, 1.20f));
         LinearLayout musicBt = new LinearLayout(this);
         musicBt.setOrientation(LinearLayout.VERTICAL);
-        topLeft.addView(musicBt, new LinearLayout.LayoutParams(0, -1, 0.85f));
+        topLeft.addView(musicBt, new LinearLayout.LayoutParams(0, -1, 0.72f));
         musicBt.addView(musicCard(), new LinearLayout.LayoutParams(-1, 0, 1.0f));
-        musicBt.addView(btCard(), new LinearLayout.LayoutParams(-1, 0, 0.52f));
+        musicBt.addView(btCard(), new LinearLayout.LayoutParams(-1, 0, 0.48f));
 
-        left.addView(commonAppsCard(), new LinearLayout.LayoutParams(-1, dp(105)));
-        TextView hint = new TextView(this);
-        hint.setText("长按常用应用可替换、重命名。图标包兼容会在后续版本继续增强。");
-        hint.setTextColor(subTextColor());
-        hint.setTextSize(13);
-        left.addView(hint, new LinearLayout.LayoutParams(-1, dp(30)));
+        left.addView(commonAppsCard(), new LinearLayout.LayoutParams(-1, dp(112)));
 
         LinearLayout right = new LinearLayout(this);
         right.setOrientation(LinearLayout.VERTICAL);
-        right.setPadding(dp(18), 0, 0, 0);
+        right.setPadding(dp(16), 0, 0, 0);
         page.addView(right, new LinearLayout.LayoutParams(0, -1, 1));
-        right.addView(heroCard(), new LinearLayout.LayoutParams(-1, dp(300)));
+        right.addView(heroCard(), new LinearLayout.LayoutParams(-1, dp(390)));
 
         LinearLayout bottom = new LinearLayout(this);
         bottom.setOrientation(LinearLayout.HORIZONTAL);
@@ -302,10 +300,11 @@ public class MainActivity extends Activity {
         navWidgetBox = new FrameLayout(this);
         navWidgetBox.setBackground(round(0x10a6c8ff, dp(18), 0));
         navHintText = new TextView(this);
-        navHintText.setText("高德地图车机版小组件区域\n点右上角“选择小组件”添加\n若无法绑定，请先把本软件设为默认主页");
+        navHintText.setText("200 米 进入\n无名道路\n\n随后 右转 进入 无名道路辅路\n\n点右上角选择高德小组件");
         navHintText.setTextColor(subTextColor());
         navHintText.setTextSize(20);
         navHintText.setGravity(Gravity.CENTER);
+        navWidgetBox.setOnClickListener(v -> pickNavWidget());
         navWidgetBox.addView(navHintText, new FrameLayout.LayoutParams(-1, -1));
         card.addView(navWidgetBox, new LinearLayout.LayoutParams(-1, 0, 1));
         return card;
@@ -395,39 +394,46 @@ public class MainActivity extends Activity {
     }
 
     private View heroCard() {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setPadding(dp(24), dp(18), dp(24), dp(12));
+        FrameLayout box = new FrameLayout(this);
+        box.setPadding(0, 0, 0, 0);
         box.setBackground(round(nightMode ? 0xff111820 : 0x00ffffff, dp(22), 0));
+
+        ImageView bgImg = new ImageView(this);
+        bgImg.setImageResource(getResources().getIdentifier("hero_miku_a4l", "drawable", getPackageName()));
+        bgImg.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        bgImg.setAlpha(nightMode ? 0.72f : 0.86f);
+        box.addView(bgImg, new FrameLayout.LayoutParams(-1, -1));
+
+        LinearLayout overlay = new LinearLayout(this);
+        overlay.setOrientation(LinearLayout.VERTICAL);
+        overlay.setPadding(dp(26), dp(24), dp(26), dp(18));
+        box.addView(overlay, new FrameLayout.LayoutParams(-1, -1));
+
         LinearLayout top = new LinearLayout(this);
         top.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout greeting = new LinearLayout(this);
         greeting.setOrientation(LinearLayout.VERTICAL);
         greetingText = new TextView(this);
-        greetingText.setTextSize(30);
+        greetingText.setTextSize(38);
         greetingText.setTypeface(Typeface.DEFAULT_BOLD);
         greetingText.setTextColor(textColor());
-        ownerSubText = smallText("专注当下，尽享驾驶", 17, false);
-        greeting.addView(greetingText);
-        greeting.addView(ownerSubText);
-        top.addView(greeting, new LinearLayout.LayoutParams(0, dp(80), 1));
-        TextView bg = new TextView(this);
-        bg.setText("RACING MIKU\n2025");
-        bg.setTextSize(48);
-        bg.setTypeface(Typeface.DEFAULT_BOLD);
-        bg.setTextColor(nightMode ? 0xff0fd6cc : 0xffff9acb);
-        bg.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        top.addView(bg, new LinearLayout.LayoutParams(dp(450), dp(112)));
-        box.addView(top);
+        ownerSubText = smallText("专注当下，尽享驾驶", 16, false);
+        greeting.addView(greetingText, new LinearLayout.LayoutParams(-1, dp(58)));
+        greeting.addView(ownerSubText, new LinearLayout.LayoutParams(-1, dp(32)));
+        top.addView(greeting, new LinearLayout.LayoutParams(dp(310), dp(100)));
+
+        TextView spacer = new TextView(this);
+        top.addView(spacer, new LinearLayout.LayoutParams(0, 1, 1));
+        overlay.addView(top, new LinearLayout.LayoutParams(-1, dp(112)));
 
         LinearLayout actions = new LinearLayout(this);
-        actions.setGravity(Gravity.CENTER_VERTICAL);
+        actions.setGravity(Gravity.LEFT | Gravity.CENTER_VERTICAL);
         actions.addView(actionButton(nightMode ? "日间模式" : "夜间模式", "☀/☾", v -> toggleDayNight()));
         actions.addView(actionButton("战斗模式", "✈", v -> launchConfigured("battle")));
-        actions.addView(actionButton("运动模式", "🏎", v -> launchConfigured("sport")));
+        actions.addView(actionButton("运动模式", "▰", v -> launchConfigured("sport")));
         actions.addView(actionButton("行车记录仪", "▣", v -> toast("后续可绑定记录仪 App")));
         actions.addView(actionButton("Gear 设置", "⚙", v -> showSettingsDialog()));
-        box.addView(actions, new LinearLayout.LayoutParams(-1, 0, 1));
+        overlay.addView(actions, new LinearLayout.LayoutParams(dp(620), dp(88)));
         return box;
     }
 
@@ -504,8 +510,8 @@ public class MainActivity extends Activity {
     private LinearLayout card(String title) {
         LinearLayout c = new LinearLayout(this);
         c.setOrientation(LinearLayout.VERTICAL);
-        c.setPadding(dp(16), dp(12), dp(16), dp(12));
-        c.setBackground(round(cardColor(), dp(18), 0x20ffffff));
+        c.setPadding(dp(18), dp(14), dp(18), dp(14));
+        c.setBackground(round(cardColor(), dp(24), 0x18d7dfe8));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -1);
         lp.setMargins(dp(6), dp(6), dp(6), dp(6));
         c.setLayoutParams(lp);
@@ -697,26 +703,87 @@ public class MainActivity extends Activity {
 
     private void pickNavWidget() {
         try {
-            int id = widgetHost.allocateAppWidgetId();
-            Intent pick = new Intent(AppWidgetManager.ACTION_APPWIDGET_PICK);
-            pick.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
-            startActivityForResult(pick, REQ_PICK_WIDGET);
-        } catch (Throwable t) { toast("无法打开小组件选择器：" + t.getClass().getSimpleName()); }
+            final List<AppWidgetProviderInfo> all = widgetManager.getInstalledProviders();
+            final ArrayList<AppWidgetProviderInfo> providers = new ArrayList<>();
+            for (AppWidgetProviderInfo info : all) {
+                if (info == null || info.provider == null) continue;
+                providers.add(info);
+            }
+            if (providers.isEmpty()) {
+                toast("系统没有返回可用小组件。可尝试设置为默认主页，或用 ADB 授权 appwidget 绑定。");
+                return;
+            }
+
+            final String[] labels = new String[providers.size()];
+            PackageManager pm = getPackageManager();
+            for (int i = 0; i < providers.size(); i++) {
+                AppWidgetProviderInfo info = providers.get(i);
+                String label;
+                try { label = info.loadLabel(pm); } catch (Throwable t) { label = ""; }
+                if (label == null || label.length() == 0) label = info.provider.flattenToShortString();
+                labels[i] = label + "\n" + info.provider.flattenToShortString();
+            }
+
+            new AlertDialog.Builder(this)
+                    .setTitle("选择导航小组件")
+                    .setItems(labels, (d, which) -> bindPickedWidget(providers.get(which)))
+                    .setNegativeButton("取消", null)
+                    .show();
+        } catch (Throwable t) {
+            toast("无法列出小组件：" + t.getClass().getSimpleName());
+        }
     }
 
-    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (resultCode != RESULT_OK || data == null) return;
-        int id = data.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1);
-        if (id < 0) return;
-        if (requestCode == REQ_PICK_WIDGET) {
-            AppWidgetProviderInfo info = widgetManager.getAppWidgetInfo(id);
-            if (info != null && info.configure != null) {
+    private void bindPickedWidget(AppWidgetProviderInfo info) {
+        if (info == null || info.provider == null) return;
+        try {
+            int id = widgetHost.allocateAppWidgetId();
+            pendingWidgetId = id;
+            pendingWidgetInfo = info;
+            boolean bound = false;
+            try { bound = widgetManager.bindAppWidgetIdIfAllowed(id, info.provider); } catch (Throwable ignored) {}
+            if (bound) {
+                configureOrAddWidget(id, info);
+            } else {
+                Intent bind = new Intent(AppWidgetManager.ACTION_APPWIDGET_BIND);
+                bind.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
+                bind.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, info.provider);
+                startActivityForResult(bind, REQ_BIND_WIDGET);
+            }
+        } catch (Throwable t) {
+            toast("绑定小组件失败：" + t.getClass().getSimpleName());
+        }
+    }
+
+    private void configureOrAddWidget(int id, AppWidgetProviderInfo info) {
+        if (info == null) info = widgetManager.getAppWidgetInfo(id);
+        if (info != null && info.configure != null) {
+            try {
                 Intent cfg = new Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE);
                 cfg.setComponent(info.configure);
                 cfg.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
                 startActivityForResult(cfg, REQ_CONFIG_WIDGET);
-            } else addWidget(id);
+                return;
+            } catch (Throwable ignored) {}
+        }
+        addWidget(id);
+    }
+
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        int id = data != null ? data.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId) : pendingWidgetId;
+        if (requestCode == REQ_BIND_WIDGET) {
+            if (resultCode == RESULT_OK && id > 0) {
+                configureOrAddWidget(id, pendingWidgetInfo != null ? pendingWidgetInfo : widgetManager.getAppWidgetInfo(id));
+            } else {
+                toast("小组件绑定未授权。请把本软件设为默认主页，或用 ADB 授权 appwidget 绑定。");
+            }
+            return;
+        }
+        if (resultCode != RESULT_OK || id < 0) return;
+        if (requestCode == REQ_PICK_WIDGET) {
+            AppWidgetProviderInfo info = widgetManager.getAppWidgetInfo(id);
+            configureOrAddWidget(id, info);
         } else if (requestCode == REQ_CONFIG_WIDGET) addWidget(id);
     }
 
