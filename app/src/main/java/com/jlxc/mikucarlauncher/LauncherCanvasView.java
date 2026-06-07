@@ -45,6 +45,10 @@ public class LauncherCanvasView extends View {
         this.menuClickListener = listener;
     }
 
+    public int getActiveIndex() {
+        return activeIndex;
+    }
+
     // 固定 32:9 车机画布。背景图保持用户指定版本，不做裁切替换。
     private static final float DESIGN_W = 2560f;
     private static final float DESIGN_H = 720f;
@@ -104,6 +108,13 @@ public class LauncherCanvasView extends View {
     private int appAnimDirection = 0;
     private long appAnimStartMs = 0L;
     private static final long APP_PAGE_ANIM_DURATION_MS = 260L;
+
+    // 全局实体按键焦点：0=左侧按钮列，1=当前页面内容区。
+    private boolean hardwareFocusVisible = false;
+    private int focusArea = 0;
+    private int sidebarFocusIndex = 0;
+    private int selectedCardIndex = 0;
+    private int selectedMineRowIndex = 0;
 
     public LauncherCanvasView(Context context) {
         super(context);
@@ -203,6 +214,11 @@ public class LauncherCanvasView extends View {
         c.drawRoundRect(bottomLeftCard, radius, radius, cardPaint);
         c.drawRoundRect(bottomMiddleCard, radius, radius, cardPaint);
         c.drawRoundRect(bottomRightCard, radius, radius, cardPaint);
+
+        if (hardwareFocusVisible && focusArea == 1 && activeIndex == 0) {
+            RectF[] cards = new RectF[]{leftCard, rightTopCard, rightBottomCard, bottomLeftCard, bottomMiddleCard, bottomRightCard};
+            drawFocusStroke(c, cards[clamp(selectedCardIndex, 0, cards.length - 1)]);
+        }
     }
 
     private void drawAppDrawerPage(Canvas c) {
@@ -378,6 +394,12 @@ public class LauncherCanvasView extends View {
         drawMineRow(c, rowLeft, rowTop + 2f * (rowH + rowGap), rowRight, rowTop + 2f * (rowH + rowGap) + rowH, "签名", signature, "点击修改");
         drawMineRow(c, rowLeft, rowTop + 3f * (rowH + rowGap), rowRight, rowTop + 3f * (rowH + rowGap) + rowH, "车机桌面设置", "默认导航/音乐、应用抽屉、隐藏应用", "进入");
         drawMineRow(c, rowLeft, rowTop + 4f * (rowH + rowGap), rowRight, rowTop + 4f * (rowH + rowGap) + rowH, "关于软件", "作者、主页与项目说明", "查看");
+
+        if (hardwareFocusVisible && focusArea == 1 && activeIndex == 6) {
+            int i = clamp(selectedMineRowIndex, 0, 4);
+            float top = rowTop + i * (rowH + rowGap);
+            drawFocusStroke(c, new RectF(rowLeft, top, rowRight, top + rowH));
+        }
     }
 
     private void drawMineRow(Canvas c, float left, float top, float right, float bottom, String title, String value, String action) {
@@ -416,6 +438,10 @@ public class LauncherCanvasView extends View {
             c.drawBitmap(selectedBg, null, selectedRect, bitmapPaint);
         }
 
+        if (hardwareFocusVisible && focusArea == 0 && sidebarFocusIndex == index) {
+            drawFocusStroke(c, selectedRect);
+        }
+
         Bitmap icon = icons[index];
         if (icon != null) {
             float iconY = y + (btnH - iconSize) / 2f;
@@ -443,7 +469,8 @@ public class LauncherCanvasView extends View {
             downDesignX = x;
             downDesignY = y;
             downTimeMs = System.currentTimeMillis();
-            if (activeIndex == 5 && appSelectionVisible) {
+            if (hardwareFocusVisible || appSelectionVisible) {
+                hardwareFocusVisible = false;
                 appSelectionVisible = false;
                 invalidate();
             }
@@ -456,7 +483,10 @@ public class LauncherCanvasView extends View {
                 float by = startY + i * (btnH + gap);
                 if (x >= 0 && x <= sidebarW && y >= by - gap / 2f && y <= by + btnH + gap / 2f) {
                     activeIndex = i;
+                    sidebarFocusIndex = i;
+                    hardwareFocusVisible = false;
                     appSelectionVisible = false;
+                    focusArea = 0;
                     if (activeIndex == 5) {
                         clampAppDrawerSelection();
                     }
@@ -604,10 +634,128 @@ public class LauncherCanvasView extends View {
     }
 
     public boolean handleHardwareKey(int keyCode) {
-        if (activeIndex != 5) {
+        if (!isNavigationKey(keyCode)) {
             return false;
         }
 
+        hardwareFocusVisible = true;
+
+        // 左侧按钮列全局可控。
+        if (focusArea == 0) {
+            if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+                sidebarFocusIndex = clamp(sidebarFocusIndex - 1, 0, labels.length - 1);
+                invalidate();
+                return true;
+            }
+
+            if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                sidebarFocusIndex = clamp(sidebarFocusIndex + 1, 0, labels.length - 1);
+                invalidate();
+                return true;
+            }
+
+            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                if (activeIndex == 0) {
+                    focusArea = 1;
+                    selectedCardIndex = clamp(selectedCardIndex, 0, 5);
+                    invalidate();
+                    return true;
+                } else if (activeIndex == 5) {
+                    focusArea = 1;
+                    appSelectionVisible = true;
+                    clampAppDrawerSelection();
+                    invalidate();
+                    return true;
+                } else if (activeIndex == 6) {
+                    focusArea = 1;
+                    selectedMineRowIndex = clamp(selectedMineRowIndex, 0, 4);
+                    invalidate();
+                    return true;
+                }
+                return true;
+            }
+
+            if (isEnterKey(keyCode)) {
+                activeIndex = sidebarFocusIndex;
+                if (activeIndex == 5) {
+                    clampAppDrawerSelection();
+                }
+                invalidate();
+                if (menuClickListener != null) {
+                    menuClickListener.onMenuClick(activeIndex, labels[activeIndex]);
+                }
+                return true;
+            }
+
+            return true;
+        }
+
+        // 内容区：首页 1~6 号卡片。
+        if (activeIndex == 0) {
+            return handleHomeCardKey(keyCode);
+        }
+
+        // 内容区：应用抽屉。
+        if (activeIndex == 5) {
+            return handleAppDrawerKey(keyCode);
+        }
+
+        // 内容区：我的。
+        if (activeIndex == 6) {
+            return handleMineKey(keyCode);
+        }
+
+        return true;
+    }
+
+    private boolean handleHomeCardKey(int keyCode) {
+        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+            // 1/4 位于最左列，再向左回到左侧按钮列。
+            if (selectedCardIndex == 0 || selectedCardIndex == 3) {
+                focusArea = 0;
+            } else {
+                selectedCardIndex = Math.max(0, selectedCardIndex - 1);
+            }
+            invalidate();
+            return true;
+        }
+
+        if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            selectedCardIndex = Math.min(5, selectedCardIndex + 1);
+            invalidate();
+            return true;
+        }
+
+        if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+            if (selectedCardIndex >= 3) {
+                // 底部 4/5/6 回到上方最近卡片。
+                selectedCardIndex = selectedCardIndex == 3 ? 0 : (selectedCardIndex == 4 ? 2 : 2);
+            } else if (selectedCardIndex == 2) {
+                selectedCardIndex = 1;
+            }
+            invalidate();
+            return true;
+        }
+
+        if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+            if (selectedCardIndex == 0 || selectedCardIndex == 2) {
+                selectedCardIndex = 3;
+            } else if (selectedCardIndex == 1) {
+                selectedCardIndex = 2;
+            }
+            invalidate();
+            return true;
+        }
+
+        if (isEnterKey(keyCode)) {
+            Toast.makeText(getContext(), (selectedCardIndex + 1) + "号卡片", Toast.LENGTH_SHORT).show();
+            return true;
+        }
+
+        return true;
+    }
+
+    private boolean handleAppDrawerKey(int keyCode) {
         loadAppsIfNeeded();
         if (cachedApps.isEmpty()) {
             return true;
@@ -623,7 +771,13 @@ public class LauncherCanvasView extends View {
 
         if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
             if (selectedAppIndex % columns == 0) {
-                moveAppDrawerPage(-1);
+                if (appDrawerPage == 0) {
+                    focusArea = 0;
+                    appSelectionVisible = false;
+                    invalidate();
+                } else {
+                    moveAppDrawerPage(-1);
+                }
             } else {
                 selectedAppIndex = Math.max(0, selectedAppIndex - 1);
                 appDrawerPage = selectedAppIndex / pageSize;
@@ -661,9 +815,7 @@ public class LauncherCanvasView extends View {
             return true;
         }
 
-        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
-                || keyCode == KeyEvent.KEYCODE_ENTER
-                || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+        if (isEnterKey(keyCode)) {
             if (selectedAppIndex >= 0 && selectedAppIndex < cachedApps.size()) {
                 AppEntry app = cachedApps.get(selectedAppIndex);
                 openApp(app.label, app.pkg, app.cls);
@@ -681,7 +833,63 @@ public class LauncherCanvasView extends View {
             return true;
         }
 
-        return false;
+        return true;
+    }
+
+    private boolean handleMineKey(int keyCode) {
+        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+            focusArea = 0;
+            invalidate();
+            return true;
+        }
+
+        if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+            selectedMineRowIndex = clamp(selectedMineRowIndex - 1, 0, 4);
+            invalidate();
+            return true;
+        }
+
+        if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+            selectedMineRowIndex = clamp(selectedMineRowIndex + 1, 0, 4);
+            invalidate();
+            return true;
+        }
+
+        if (isEnterKey(keyCode)) {
+            if (selectedMineRowIndex == 0) {
+                showEditDialog("车主名称", "owner_name", "江灵夏草");
+            } else if (selectedMineRowIndex == 1) {
+                showEditDialog("汽车品牌", "car_brand", "奥迪");
+            } else if (selectedMineRowIndex == 2) {
+                showEditDialog("签名", "signature", "MikuCarLauncher");
+            } else if (selectedMineRowIndex == 3) {
+                Intent intent = new Intent(getContext(), DesktopSettingsActivity.class);
+                getContext().startActivity(intent);
+            } else if (selectedMineRowIndex == 4) {
+                showAboutDialog();
+            }
+            return true;
+        }
+
+        return true;
+    }
+
+    private boolean isNavigationKey(int keyCode) {
+        return keyCode == KeyEvent.KEYCODE_DPAD_UP
+                || keyCode == KeyEvent.KEYCODE_DPAD_DOWN
+                || keyCode == KeyEvent.KEYCODE_DPAD_LEFT
+                || keyCode == KeyEvent.KEYCODE_DPAD_RIGHT
+                || keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+                || keyCode == KeyEvent.KEYCODE_ENTER
+                || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+                || keyCode == KeyEvent.KEYCODE_PAGE_DOWN
+                || keyCode == KeyEvent.KEYCODE_PAGE_UP;
+    }
+
+    private boolean isEnterKey(int keyCode) {
+        return keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+                || keyCode == KeyEvent.KEYCODE_ENTER
+                || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER;
     }
 
     @Override
@@ -817,6 +1025,15 @@ public class LauncherCanvasView extends View {
         }
 
         lastAppLoadTime = now;
+    }
+
+    private void drawFocusStroke(Canvas c, RectF r) {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(4f);
+        p.setColor(Color.rgb(46, 120, 255));
+        RectF rr = new RectF(r.left + 3f, r.top + 3f, r.right - 3f, r.bottom - 3f);
+        c.drawRoundRect(rr, 18f, 18f, p);
     }
 
     private void drawCenteredTextSingleLine(Canvas c, String text, float centerX, float y, Paint paint, float maxWidth) {

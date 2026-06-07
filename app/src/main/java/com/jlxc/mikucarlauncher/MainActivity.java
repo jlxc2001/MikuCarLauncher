@@ -1,20 +1,42 @@
 package com.jlxc.mikucarlauncher;
 
 import android.app.Activity;
+import android.appwidget.AppWidgetHost;
+import android.appwidget.AppWidgetHostView;
+import android.appwidget.AppWidgetManager;
+import android.appwidget.AppWidgetProviderInfo;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
+import android.view.KeyEvent;
 import android.view.View;
 import android.view.Window;
-import android.view.KeyEvent;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 public class MainActivity extends Activity {
     public static final String PREFS = "miku_car_launcher_settings";
+    public static final String PREF_CARD1_WIDGET_ID = "card1_widget_id";
+    public static final int APPWIDGET_HOST_ID = 1001;
+
+    private static final float DESIGN_W = 2560f;
+    private static final float DESIGN_H = 720f;
+
+    // 1 号卡片坐标：和已确认 UI 保持一致。
+    private static final float CARD1_L = 210f;
+    private static final float CARD1_T = 35.5f;
+    private static final float CARD1_R = 730f;
+    private static final float CARD1_B = 528.5f;
+    private static final float CARD1_WIDGET_INSET = 12f;
 
     private LauncherCanvasView launcherView;
+    private FrameLayout rootLayout;
+    private AppWidgetManager appWidgetManager;
+    private AppWidgetHost appWidgetHost;
+    private AppWidgetHostView card1WidgetView;
+    private int currentCard1WidgetId = -1;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -22,20 +44,38 @@ public class MainActivity extends Activity {
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         keepFullscreen();
 
+        appWidgetManager = AppWidgetManager.getInstance(this);
+        appWidgetHost = new AppWidgetHost(this, APPWIDGET_HOST_ID);
+
+        rootLayout = new FrameLayout(this);
+
         launcherView = new LauncherCanvasView(this);
         launcherView.setOnMenuClickListener(new LauncherCanvasView.OnMenuClickListener() {
             @Override
             public void onMenuClick(int index, String label) {
                 handleMenuClick(index);
+                updateCard1WidgetVisibility();
             }
         });
-        setContentView(launcherView);
+
+        rootLayout.addView(launcherView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        setContentView(rootLayout);
+
+        rootLayout.post(new Runnable() {
+            @Override
+            public void run() {
+                updateCard1WidgetVisibility();
+            }
+        });
     }
 
     private void handleMenuClick(int index) {
         switch (index) {
             case 0: // 首页
-                // 当前主界面就是首页。这里刷新一次界面，确保从当前页回到默认首页状态。
                 if (launcherView != null) {
                     launcherView.invalidate();
                 }
@@ -66,14 +106,12 @@ public class MainActivity extends Activity {
                 break;
 
             case 5: // 应用
-                // 应用抽屉现在以内嵌大卡片形式显示在主界面内，保留左侧按钮列。
                 if (launcherView != null) {
                     launcherView.invalidate();
                 }
                 break;
 
             case 6: // 我的
-                // “我的”现在以内嵌大卡片形式显示在主界面内，保留左侧按钮列。
                 if (launcherView != null) {
                     launcherView.invalidate();
                 }
@@ -88,7 +126,6 @@ public class MainActivity extends Activity {
             return;
         }
 
-        // 车机常见蓝牙音乐界面兜底。
         if (launchComponent(
                 "com.ts.MainUI",
                 "com.ts.bt.BtMusicActivity",
@@ -135,6 +172,77 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void updateCard1WidgetVisibility() {
+        if (rootLayout == null || launcherView == null) {
+            return;
+        }
+
+        if (launcherView.getActiveIndex() != 0) {
+            if (card1WidgetView != null) {
+                card1WidgetView.setVisibility(View.GONE);
+            }
+            return;
+        }
+
+        int widgetId = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(PREF_CARD1_WIDGET_ID, -1);
+        if (widgetId < 0) {
+            removeCard1WidgetView();
+            return;
+        }
+
+        AppWidgetProviderInfo info = appWidgetManager.getAppWidgetInfo(widgetId);
+        if (info == null) {
+            removeCard1WidgetView();
+            return;
+        }
+
+        if (card1WidgetView == null || currentCard1WidgetId != widgetId) {
+            removeCard1WidgetView();
+            currentCard1WidgetId = widgetId;
+            card1WidgetView = appWidgetHost.createView(this, widgetId, info);
+            card1WidgetView.setAppWidget(widgetId, info);
+            card1WidgetView.setPadding(0, 0, 0, 0);
+            rootLayout.addView(card1WidgetView);
+        }
+
+        positionCard1Widget();
+        card1WidgetView.setVisibility(View.VISIBLE);
+        card1WidgetView.bringToFront();
+    }
+
+    private void removeCard1WidgetView() {
+        if (card1WidgetView != null && rootLayout != null) {
+            rootLayout.removeView(card1WidgetView);
+        }
+        card1WidgetView = null;
+        currentCard1WidgetId = -1;
+    }
+
+    private void positionCard1Widget() {
+        if (card1WidgetView == null || rootLayout == null) {
+            return;
+        }
+
+        int rw = rootLayout.getWidth();
+        int rh = rootLayout.getHeight();
+        if (rw <= 0 || rh <= 0) {
+            return;
+        }
+
+        float sx = rw / DESIGN_W;
+        float sy = rh / DESIGN_H;
+
+        int left = Math.round((CARD1_L + CARD1_WIDGET_INSET) * sx);
+        int top = Math.round((CARD1_T + CARD1_WIDGET_INSET) * sy);
+        int width = Math.round((CARD1_R - CARD1_L - CARD1_WIDGET_INSET * 2f) * sx);
+        int height = Math.round((CARD1_B - CARD1_T - CARD1_WIDGET_INSET * 2f) * sy);
+
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(width, height);
+        lp.leftMargin = left;
+        lp.topMargin = top;
+        card1WidgetView.setLayoutParams(lp);
+    }
+
     private void showToast(String msg) {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
@@ -152,10 +260,10 @@ public class MainActivity extends Activity {
         );
     }
 
-
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (launcherView != null && launcherView.handleHardwareKey(keyCode)) {
+            updateCard1WidgetVisibility();
             return true;
         }
         return super.onKeyDown(keyCode, event);
@@ -165,6 +273,25 @@ public class MainActivity extends Activity {
     protected void onResume() {
         super.onResume();
         keepFullscreen();
+        if (appWidgetHost != null) {
+            appWidgetHost.startListening();
+        }
+        if (rootLayout != null) {
+            rootLayout.post(new Runnable() {
+                @Override
+                public void run() {
+                    updateCard1WidgetVisibility();
+                }
+            });
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (appWidgetHost != null) {
+            appWidgetHost.stopListening();
+        }
     }
 
     @Override
@@ -172,6 +299,7 @@ public class MainActivity extends Activity {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
             keepFullscreen();
+            positionCard1Widget();
         }
     }
 }
