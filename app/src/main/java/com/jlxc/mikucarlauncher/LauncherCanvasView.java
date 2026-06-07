@@ -102,14 +102,25 @@ public class LauncherCanvasView extends View {
 
 
     private void drawEmptyCards(Canvas c) {
-        // 按用户最新标注：左边一个大卡片，右边拆成上下两个白底卡片。
+        // 左边保留一个大卡片。
         RectF leftCard = new RectF(210f, 44f, 730f, 470f);
-        RectF rightTopCard = new RectF(748f, 44f, 1140f, 272f);
-        RectF rightBottomCard = new RectF(748f, 286f, 1140f, 470f);
+
+        // 右上/右下卡片：按用户要求，上面的更厚一些，下面的更扁一些。
+        RectF rightTopCard = new RectF(748f, 44f, 1140f, 329f);
+        RectF rightBottomCard = new RectF(748f, 343f, 1140f, 481f);
+
+        // 底部新增 3 个白底卡片，位置按用户红框示意放置。
+        RectF bottomLeftCard = new RectF(214f, 514f, 1140f, 652f);
+        RectF bottomMiddleCard = new RectF(1170f, 514f, 1940f, 652f);
+        RectF bottomRightCard = new RectF(1970f, 514f, 2396f, 652f);
+
         float radius = 18f;
         c.drawRoundRect(leftCard, radius, radius, cardPaint);
         c.drawRoundRect(rightTopCard, radius, radius, cardPaint);
         c.drawRoundRect(rightBottomCard, radius, radius, cardPaint);
+        c.drawRoundRect(bottomLeftCard, radius, radius, cardPaint);
+        c.drawRoundRect(bottomMiddleCard, radius, radius, cardPaint);
+        c.drawRoundRect(bottomRightCard, radius, radius, cardPaint);
     }
 
     private void drawMenuItem(Canvas c, int index) {
