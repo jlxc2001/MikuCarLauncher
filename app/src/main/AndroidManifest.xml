@@ -1,23 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <uses-permission android:name="android.permission.BLUETOOTH" />
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
-    <uses-permission android:name="android.permission.BIND_APPWIDGET" />
-    <uses-permission android:name="android.permission.MEDIA_CONTENT_CONTROL" />
-    <uses-permission android:name="android.permission.REORDER_TASKS" />
-
     <application
         android:theme="@style/AppTheme"
-        android:label="A4L车机桌面"
-        android:allowBackup="true"
-        android:resizeableActivity="true">
-
+        android:label="MikuCarLauncher"
+        android:icon="@mipmap/ic_launcher"
+        android:resizeableActivity="true"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:screenOrientation="landscape"
-            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -29,15 +19,5 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
-
-        <service
-            android:name=".MusicNotificationListener"
-            android:label="A4L车机桌面音乐信息读取"
-            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.service.notification.NotificationListenerService" />
-            </intent-filter>
-        </service>
     </application>
 </manifest>

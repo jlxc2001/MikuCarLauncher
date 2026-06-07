@@ -1,18 +1,16 @@
 plugins { id 'com.android.application' }
 
 android {
-    namespace 'com.jlxc.a4ldashboard'
+    namespace 'com.jlxc.mikucarlauncher'
     compileSdk 34
 
     defaultConfig {
-        applicationId 'com.jlxc.a4ldashboard'
+        applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
         versionCode 1
-        versionName '0.1.0-alpha'
+        versionName '0.1.0-sidebar-ui'
     }
-
-    buildFeatures { aidl true }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
