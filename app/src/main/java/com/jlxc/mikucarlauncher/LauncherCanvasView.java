@@ -111,7 +111,7 @@ public class LauncherCanvasView extends View {
         RectF rightBottomCard = new RectF(748f, 332f, 1140f, 470f);
 
         // 底部新增 3 个白底卡片，位置按用户红框示意放置。
-        RectF bottomLeftCard = new RectF(214f, 514f, 1140f, 652f);
+        RectF bottomLeftCard = new RectF(210f, 514f, 1140f, 652f);
         RectF bottomMiddleCard = new RectF(1170f, 514f, 1940f, 652f);
         RectF bottomRightCard = new RectF(1970f, 514f, 2396f, 652f);
 

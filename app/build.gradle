@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 10
-        versionName '0.1.9-card-alignment-fix'
+        versionCode 11
+        versionName '0.2.0-left-edge-align'
     }
 
     // GitHub 网页上传不会自动删除旧文件。
