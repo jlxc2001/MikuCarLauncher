@@ -32,6 +32,10 @@
             android:name=".AppDrawerSettingsActivity"
             android:screenOrientation="landscape"
             android:exported="false" />
+        <activity
+            android:name=".WidgetPickerActivity"
+            android:screenOrientation="landscape"
+            android:exported="false" />
 
         <activity
             android:name=".MainActivity"

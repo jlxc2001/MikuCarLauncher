@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.appwidget.AppWidgetHost;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProviderInfo;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
@@ -20,8 +21,10 @@ import android.widget.Toast;
 
 public class DesktopSettingsActivity extends Activity {
     private static final String PREFS = MainActivity.PREFS;
-    private static final int REQ_PICK_WIDGET = 2401;
-    private static final int REQ_CONFIG_WIDGET = 2402;
+
+    private static final int REQ_SELECT_WIDGET_PROVIDER = 2501;
+    private static final int REQ_BIND_WIDGET = 2502;
+    private static final int REQ_CONFIG_WIDGET = 2503;
 
     private TextView navValue;
     private TextView musicValue;
@@ -31,6 +34,7 @@ public class DesktopSettingsActivity extends Activity {
     private AppWidgetHost appWidgetHost;
     private AppWidgetManager appWidgetManager;
     private int pendingWidgetId = -1;
+    private ComponentName pendingProvider;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -104,7 +108,7 @@ public class DesktopSettingsActivity extends Activity {
         chooseWidget.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                pickCard1Widget();
+                openBuiltInWidgetPicker();
             }
         });
 
@@ -197,15 +201,73 @@ public class DesktopSettingsActivity extends Activity {
         }
     }
 
-    private void pickCard1Widget() {
+    private void openBuiltInWidgetPicker() {
+        Intent intent = new Intent(this, WidgetPickerActivity.class);
+        startActivityForResult(intent, REQ_SELECT_WIDGET_PROVIDER);
+    }
+
+    private void bindSelectedWidget(ComponentName provider) {
+        pendingProvider = provider;
+        pendingWidgetId = appWidgetHost.allocateAppWidgetId();
+
+        boolean bound = false;
         try {
-            pendingWidgetId = appWidgetHost.allocateAppWidgetId();
-            Intent pickIntent = new Intent(AppWidgetManager.ACTION_APPWIDGET_PICK);
-            pickIntent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId);
-            startActivityForResult(pickIntent, REQ_PICK_WIDGET);
-        } catch (Throwable t) {
-            Toast.makeText(this, "无法打开小组件选择器。请确认当前系统允许本软件创建桌面小组件。", Toast.LENGTH_LONG).show();
+            bound = appWidgetManager.bindAppWidgetIdIfAllowed(pendingWidgetId, provider);
+        } catch (Throwable ignored) {
+            bound = false;
         }
+
+        if (bound) {
+            configureOrSaveWidget(pendingWidgetId);
+            return;
+        }
+
+        // 没有直接绑定权限时，走系统授权页。部分阉割车机可能没有这个授权页，
+        // 这种情况下会提示用户先把本软件设为默认桌面，或在系统里给小组件绑定权限。
+        try {
+            Intent bindIntent = new Intent(AppWidgetManager.ACTION_APPWIDGET_BIND);
+            bindIntent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, pendingWidgetId);
+            bindIntent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, provider);
+            startActivityForResult(bindIntent, REQ_BIND_WIDGET);
+        } catch (Throwable t) {
+            try {
+                appWidgetHost.deleteAppWidgetId(pendingWidgetId);
+            } catch (Throwable ignored) {
+            }
+            pendingWidgetId = -1;
+            pendingProvider = null;
+            Toast.makeText(this, "系统没有提供小组件绑定授权页。请先把本软件设为默认桌面，或允许本软件创建桌面小组件。", Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private void configureOrSaveWidget(int appWidgetId) {
+        AppWidgetProviderInfo info = appWidgetManager.getAppWidgetInfo(appWidgetId);
+        if (info == null) {
+            saveCard1Widget(appWidgetId, "已选择小组件");
+            return;
+        }
+
+        if (info.configure != null) {
+            Intent configIntent = new Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE);
+            configIntent.setComponent(info.configure);
+            configIntent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
+            pendingWidgetId = appWidgetId;
+            try {
+                startActivityForResult(configIntent, REQ_CONFIG_WIDGET);
+            } catch (Throwable t) {
+                saveCard1Widget(appWidgetId, makeWidgetLabel(info));
+            }
+        } else {
+            saveCard1Widget(appWidgetId, makeWidgetLabel(info));
+        }
+    }
+
+    private String makeWidgetLabel(AppWidgetProviderInfo info) {
+        String label = info == null ? "" : info.label;
+        if (label == null || label.length() == 0) {
+            label = (info != null && info.provider != null) ? info.provider.flattenToShortString() : "已选择小组件";
+        }
+        return label;
     }
 
     private void clearCard1Widget() {
@@ -225,17 +287,7 @@ public class DesktopSettingsActivity extends Activity {
         refreshValues();
     }
 
-    private void saveCard1Widget(int appWidgetId) {
-        AppWidgetProviderInfo info = appWidgetManager.getAppWidgetInfo(appWidgetId);
-        if (info == null) {
-            Toast.makeText(this, "小组件绑定失败，请重新选择", Toast.LENGTH_LONG).show();
-            try {
-                appWidgetHost.deleteAppWidgetId(appWidgetId);
-            } catch (Throwable ignored) {
-            }
-            return;
-        }
-
+    private void saveCard1Widget(int appWidgetId, String label) {
         SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
         int oldId = sp.getInt(MainActivity.PREF_CARD1_WIDGET_ID, -1);
         if (oldId >= 0 && oldId != appWidgetId) {
@@ -245,9 +297,8 @@ public class DesktopSettingsActivity extends Activity {
             }
         }
 
-        String label = info.label;
         if (label == null || label.length() == 0) {
-            label = info.provider == null ? "已选择小组件" : info.provider.getPackageName();
+            label = "已选择小组件";
         }
 
         sp.edit()
@@ -262,35 +313,39 @@ public class DesktopSettingsActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         keepFullscreen();
-        if (requestCode == REQ_PICK_WIDGET) {
+
+        if (requestCode == REQ_SELECT_WIDGET_PROVIDER) {
+            if (resultCode != RESULT_OK || data == null) {
+                return;
+            }
+
+            String pkg = data.getStringExtra(WidgetPickerActivity.EXTRA_PROVIDER_PACKAGE);
+            String cls = data.getStringExtra(WidgetPickerActivity.EXTRA_PROVIDER_CLASS);
+            if (pkg == null || cls == null) {
+                Toast.makeText(this, "小组件信息无效，请重新选择", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            bindSelectedWidget(new ComponentName(pkg, cls));
+            return;
+        }
+
+        if (requestCode == REQ_BIND_WIDGET) {
             int appWidgetId = pendingWidgetId;
             if (data != null) {
                 appWidgetId = data.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
             }
 
-            if (resultCode != RESULT_OK) {
+            if (resultCode == RESULT_OK) {
+                configureOrSaveWidget(appWidgetId);
+            } else {
                 if (appWidgetId >= 0) {
                     try {
                         appWidgetHost.deleteAppWidgetId(appWidgetId);
                     } catch (Throwable ignored) {
                     }
                 }
-                return;
-            }
-
-            AppWidgetProviderInfo info = appWidgetManager.getAppWidgetInfo(appWidgetId);
-            if (info != null && info.configure != null) {
-                Intent configIntent = new Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE);
-                configIntent.setComponent(info.configure);
-                configIntent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
-                pendingWidgetId = appWidgetId;
-                try {
-                    startActivityForResult(configIntent, REQ_CONFIG_WIDGET);
-                } catch (Throwable t) {
-                    saveCard1Widget(appWidgetId);
-                }
-            } else {
-                saveCard1Widget(appWidgetId);
+                Toast.makeText(this, "小组件授权被取消，无法放到 1号卡片", Toast.LENGTH_SHORT).show();
             }
             return;
         }
@@ -302,12 +357,14 @@ public class DesktopSettingsActivity extends Activity {
             }
 
             if (resultCode == RESULT_OK) {
-                saveCard1Widget(appWidgetId);
+                AppWidgetProviderInfo info = appWidgetManager.getAppWidgetInfo(appWidgetId);
+                saveCard1Widget(appWidgetId, makeWidgetLabel(info));
             } else if (appWidgetId >= 0) {
                 try {
                     appWidgetHost.deleteAppWidgetId(appWidgetId);
                 } catch (Throwable ignored) {
                 }
+                Toast.makeText(this, "小组件配置被取消", Toast.LENGTH_SHORT).show();
             }
             return;
         }

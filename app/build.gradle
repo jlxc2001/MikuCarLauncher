@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 17
-        versionName '0.2.6-widget-global-dpad'
+        versionCode 18
+        versionName '0.2.7-builtin-widget-picker'
     }
 
     // GitHub 网页上传不会自动删除旧文件。
