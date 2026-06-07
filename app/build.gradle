@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 1
-        versionName '0.1.0-sidebar-ui'
+        versionCode 2
+        versionName '0.1.1-bg32-sidebar-buttons'
     }
 
     // GitHub 网页上传不会自动删除旧文件。
