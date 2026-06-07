@@ -31,6 +31,7 @@ public class DesktopSettingsActivity extends Activity {
     private TextView drawerStyleValue;
     private TextView card1WidgetValue;
     private TextView commonAppsValue;
+    private TextView weatherValue;
 
     private RoundedAppWidgetHost appWidgetHost;
     private AppWidgetManager appWidgetManager;
@@ -147,6 +148,15 @@ public class DesktopSettingsActivity extends Activity {
             }
         });
 
+        weatherValue = addValue(root, "6号卡片天气：");
+        Button weatherSettings = addButton(root, "设置 6号天气卡片");
+        weatherSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(DesktopSettingsActivity.this, WeatherSettingsActivity.class));
+            }
+        });
+
         Button hiddenApps = addButton(root, "隐藏应用抽屉里的软件");
         hiddenApps.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -230,6 +240,12 @@ public class DesktopSettingsActivity extends Activity {
                 }
             }
             commonAppsValue.setText("4号卡片常用软件： " + (count > 0 ? ("已配置 " + count + " 个（" + sb.toString() + "）") : "未设置"));
+        }
+        if (weatherValue != null) {
+            String city = sp.getString(WeatherProvider.PREF_WEATHER_CITY_NAME, "萍乡");
+            String code = sp.getString(WeatherProvider.PREF_WEATHER_CITY_CODE, "360300");
+            String key = sp.getString(WeatherProvider.PREF_WEATHER_AMAP_KEY, "");
+            weatherValue.setText("6号卡片天气： " + city + " / " + code + (key == null || key.length() == 0 ? "，未设置 Key" : "，已设置 Key"));
         }
     }
 

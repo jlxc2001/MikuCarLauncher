@@ -38,6 +38,7 @@ import android.widget.EditText;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -74,7 +75,28 @@ public class LauncherCanvasView extends View {
     private final Bitmap btStatusGroupIcon;
     private final Bitmap phonePreviewIcon;
     private final Bitmap carTopViewBitmap;
+    private final Bitmap carTopViewFrontRightOpenBitmap;
+    private final Bitmap carTopViewRearRightOpenBitmap;
+    private final Bitmap carTopViewRearLeftOpenBitmap;
+    private final Bitmap carTopViewFrontLeftOpenBitmap;
+    private final Bitmap weatherSunnyIcon;
+    private final Bitmap weatherClearNightIcon;
+    private final Bitmap weatherCloudyIcon;
+    private final Bitmap weatherOvercastIcon;
+    private final Bitmap weatherLightRainIcon;
+    private final Bitmap weatherModerateRainIcon;
+    private final Bitmap weatherHeavyRainIcon;
+    private final Bitmap weatherStormRainIcon;
+    private final Bitmap weatherThunderIcon;
+    private final Bitmap weatherSnowIcon;
+    private final Bitmap weatherSleetIcon;
+    private final Bitmap weatherFogIcon;
+    private final Bitmap weatherHazeIcon;
+    private final Bitmap weatherDustIcon;
+    private final Bitmap weatherWindIcon;
+    private final Bitmap weatherUnknownIcon;
     private final VehicleDataProvider vehicleDataProvider;
+    private final WeatherProvider weatherProvider;
     private final String[] labels = {"首页", "导航", "音乐", "车辆", "全景", "应用", "我的"};
 
     private final Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
@@ -174,7 +196,28 @@ public class LauncherCanvasView extends View {
         btStatusGroupIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_bt_status_group_hd);
         phonePreviewIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_phone_hd);
         carTopViewBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.car_top_view_a4l);
+        carTopViewFrontRightOpenBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.car_top_view_a4l_right_front_open);
+        carTopViewRearRightOpenBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.car_top_view_a4l_right_rear_open);
+        carTopViewRearLeftOpenBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.car_top_view_a4l_left_rear_open);
+        carTopViewFrontLeftOpenBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.car_top_view_a4l_left_front_open);
+        weatherSunnyIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_sunny);
+        weatherClearNightIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_clear_night);
+        weatherCloudyIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_cloudy);
+        weatherOvercastIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_overcast);
+        weatherLightRainIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_light_rain);
+        weatherModerateRainIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_moderate_rain);
+        weatherHeavyRainIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_heavy_rain);
+        weatherStormRainIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_storm_rain);
+        weatherThunderIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_thunder);
+        weatherSnowIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_snow);
+        weatherSleetIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_sleet);
+        weatherFogIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_fog);
+        weatherHazeIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_haze);
+        weatherDustIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_dust);
+        weatherWindIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_wind);
+        weatherUnknownIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_unknown);
         vehicleDataProvider = new VehicleDataProvider(context);
+        weatherProvider = new WeatherProvider(context);
 
         // 启动后后台预热应用抽屉缓存，避免第一次按“应用”才开始加载。
         post(new Runnable() {
@@ -185,6 +228,7 @@ public class LauncherCanvasView extends View {
         });
 
         vehicleDataProvider.start();
+        weatherProvider.start();
 
         textPaint.setColor(Color.rgb(20, 20, 20));
         textPaint.setTextSize(24f);
@@ -281,6 +325,7 @@ public class LauncherCanvasView extends View {
         drawBluetoothCard(c, rightBottomCard);
         drawCommonAppsCard(c, bottomLeftCard);
         drawVehicleStatusCard(c, bottomMiddleCard);
+        drawWeatherCard(c, bottomRightCard);
 
         if (hardwareFocusVisible && focusArea == 1 && activeIndex == 0) {
             RectF[] cards = new RectF[]{leftCard, rightTopCard, rightBottomCard, bottomLeftCard, bottomMiddleCard, bottomRightCard};
@@ -710,13 +755,18 @@ public class LauncherCanvasView extends View {
         titlePaint.setTextSize(32f);
         titlePaint.setColor(Color.rgb(18, 18, 18));
         String rangeText = (data.valid && data.rangeKm >= 0) ? String.valueOf(data.rangeKm) : "--";
-        c.drawText(rangeText, card.left + 34f, card.top + 76f, titlePaint);
+        float rangeX = card.left + 34f;
+        float rangeY = card.top + 76f;
+
+        // 先用大号数字字体测量宽度，再切到小号 km 字体。
+        // 上一版是切到 18f 之后才 measureText，导致 "--" 和 "km" 挤在一起。
+        float rangeTextWidth = titlePaint.measureText(rangeText);
+        c.drawText(rangeText, rangeX, rangeY, titlePaint);
 
         titlePaint.setFakeBoldText(false);
         titlePaint.setTextSize(18f);
         titlePaint.setColor(Color.rgb(40, 40, 40));
-        float rangeTextWidth = titlePaint.measureText(rangeText);
-        c.drawText("km", card.left + 34f + rangeTextWidth + 8f, card.top + 76f, titlePaint);
+        c.drawText("km", rangeX + rangeTextWidth + 12f, rangeY, titlePaint);
 
         subTextPaint.setTextAlign(Paint.Align.LEFT);
         subTextPaint.setTextSize(18f);
@@ -734,11 +784,35 @@ public class LauncherCanvasView extends View {
         c.drawText(status, card.left + 34f, card.top + 106f, subTextPaint);
 
         RectF carRect = getCard5CarRect(card);
-        drawBitmapFitCenter(c, carTopViewBitmap, carRect);
+        Bitmap carBitmap = getVehicleTopViewBitmap(data);
+        drawBitmapFitCenter(c, carBitmap, carRect);
         drawVehicleDoorFeedback(c, carRect, data);
 
         // 车辆数据低频刷新，绘制层只做轻量重绘。
         postInvalidateDelayed(900L);
+    }
+
+    private Bitmap getVehicleTopViewBitmap(VehicleDataProvider.Snapshot data) {
+        if (data == null || !data.valid) {
+            return carTopViewBitmap;
+        }
+
+        // 先按用户给的四张实车俯视图切换单门打开状态。
+        // 如果同时有多门开启，先按前左 -> 前右 -> 后左 -> 后右优先显示其中一张，
+        // 其余门位仍用下方的轻量反馈继续提示。
+        if (data.frontLeftDoorOpen && carTopViewFrontLeftOpenBitmap != null) {
+            return carTopViewFrontLeftOpenBitmap;
+        }
+        if (data.frontRightDoorOpen && carTopViewFrontRightOpenBitmap != null) {
+            return carTopViewFrontRightOpenBitmap;
+        }
+        if (data.rearLeftDoorOpen && carTopViewRearLeftOpenBitmap != null) {
+            return carTopViewRearLeftOpenBitmap;
+        }
+        if (data.rearRightDoorOpen && carTopViewRearRightOpenBitmap != null) {
+            return carTopViewRearRightOpenBitmap;
+        }
+        return carTopViewBitmap;
     }
 
     private RectF getCard5CarRect(RectF card) {
@@ -757,6 +831,11 @@ public class LauncherCanvasView extends View {
                 || data.trunkOpen
                 || data.hoodOpen;
 
+        boolean usingRealDoorBitmap = (data.frontLeftDoorOpen && carTopViewFrontLeftOpenBitmap != null)
+                || (data.frontRightDoorOpen && carTopViewFrontRightOpenBitmap != null)
+                || (data.rearLeftDoorOpen && carTopViewRearLeftOpenBitmap != null)
+                || (data.rearRightDoorOpen && carTopViewRearRightOpenBitmap != null);
+
         if (!anyOpen) {
             return;
         }
@@ -773,35 +852,37 @@ public class LauncherCanvasView extends View {
         doorStroke.setStrokeWidth(2.2f);
         doorStroke.setColor(Color.argb(220, 46, 120, 255));
 
-        // 这里先用单张俯视图做轻量“车门打开反馈”：开门时在对应位置弹出蓝色门板。
-        // 等你后面提供独立门素材后，可以替换成真正的叠加动画。
-        if (data.frontLeftDoorOpen) {
-            drawDoorPanel(c, doorFill, doorStroke,
-                    carRect.left + carRect.width() * 0.30f,
-                    carRect.top + carRect.height() * 0.34f,
-                    carRect.width() * 0.17f,
-                    -1);
-        }
-        if (data.rearLeftDoorOpen) {
-            drawDoorPanel(c, doorFill, doorStroke,
-                    carRect.left + carRect.width() * 0.53f,
-                    carRect.top + carRect.height() * 0.34f,
-                    carRect.width() * 0.17f,
-                    -1);
-        }
-        if (data.frontRightDoorOpen) {
-            drawDoorPanel(c, doorFill, doorStroke,
-                    carRect.left + carRect.width() * 0.30f,
-                    carRect.top + carRect.height() * 0.66f,
-                    carRect.width() * 0.17f,
-                    1);
-        }
-        if (data.rearRightDoorOpen) {
-            drawDoorPanel(c, doorFill, doorStroke,
-                    carRect.left + carRect.width() * 0.53f,
-                    carRect.top + carRect.height() * 0.66f,
-                    carRect.width() * 0.17f,
-                    1);
+        // 已接入你提供的四张开门俯视图。若当前门位有专用图，就不再额外叠蓝色门板；
+        // 若以后出现多门同开、或没有对应素材的门位，再回退到轻量门板反馈。
+        if (!usingRealDoorBitmap) {
+            if (data.frontLeftDoorOpen) {
+                drawDoorPanel(c, doorFill, doorStroke,
+                        carRect.left + carRect.width() * 0.30f,
+                        carRect.top + carRect.height() * 0.34f,
+                        carRect.width() * 0.17f,
+                        -1);
+            }
+            if (data.rearLeftDoorOpen) {
+                drawDoorPanel(c, doorFill, doorStroke,
+                        carRect.left + carRect.width() * 0.53f,
+                        carRect.top + carRect.height() * 0.34f,
+                        carRect.width() * 0.17f,
+                        -1);
+            }
+            if (data.frontRightDoorOpen) {
+                drawDoorPanel(c, doorFill, doorStroke,
+                        carRect.left + carRect.width() * 0.30f,
+                        carRect.top + carRect.height() * 0.66f,
+                        carRect.width() * 0.17f,
+                        1);
+            }
+            if (data.rearRightDoorOpen) {
+                drawDoorPanel(c, doorFill, doorStroke,
+                        carRect.left + carRect.width() * 0.53f,
+                        carRect.top + carRect.height() * 0.66f,
+                        carRect.width() * 0.17f,
+                        1);
+            }
         }
 
         if (data.hoodOpen) {
@@ -842,6 +923,86 @@ public class LauncherCanvasView extends View {
 
         c.drawPath(path, fill);
         c.drawPath(path, stroke);
+    }
+
+    private void drawWeatherCard(Canvas c, RectF card) {
+        WeatherProvider.Snapshot weather = weatherProvider == null
+                ? WeatherProvider.Snapshot.empty()
+                : weatherProvider.getSnapshot();
+
+        String city = weather.city == null || weather.city.length() == 0 ? "萍乡" : weather.city;
+        String weatherText = weather.valid ? weather.weather : weather.message;
+        if (weatherText == null || weatherText.length() == 0) {
+            weatherText = "天气读取中";
+        }
+
+        titlePaint.setTextAlign(Paint.Align.LEFT);
+        titlePaint.setFakeBoldText(true);
+        titlePaint.setTextSize(20f);
+        titlePaint.setColor(Color.rgb(36, 36, 36));
+        c.drawText("天气", card.left + 28f, card.top + 35f, titlePaint);
+
+        subTextPaint.setTextAlign(Paint.Align.LEFT);
+        subTextPaint.setTextSize(18f);
+        subTextPaint.setColor(Color.rgb(80, 80, 80));
+        drawTextEllipsize(c, city, card.left + 28f, card.top + 66f, subTextPaint, card.width() - 168f);
+
+        titlePaint.setFakeBoldText(true);
+        titlePaint.setTextSize(29f);
+        titlePaint.setColor(Color.rgb(22, 22, 22));
+        String mainLine;
+        if (weather.valid) {
+            String temp = weather.temperature == null || weather.temperature.length() == 0 ? "--" : weather.temperature;
+            mainLine = weather.weather + "  " + temp + "℃";
+        } else {
+            mainLine = weather.needsSetup ? "请设置天气" : weatherText;
+        }
+        drawTextEllipsize(c, mainLine, card.left + 28f, card.top + 106f, titlePaint, card.width() - 168f);
+
+        subTextPaint.setTextSize(16f);
+        subTextPaint.setColor(Color.rgb(105, 105, 105));
+        String bottomLine = weather.valid ? "高德天气" : (weather.needsSetup ? "点击设置 Key" : "稍后重试");
+        c.drawText(bottomLine, card.left + 28f, card.top + 132f, subTextPaint);
+
+        Bitmap icon = pickWeatherIcon(weather.valid ? weather.weather : "");
+        RectF iconRect = new RectF(card.right - 146f, card.top + 14f, card.right - 22f, card.bottom - 12f);
+        drawBitmapFitCenter(c, icon, iconRect);
+
+        postInvalidateDelayed(weather.valid ? 60_000L : 3_000L);
+    }
+
+    private Bitmap pickWeatherIcon(String condition) {
+        if (condition == null) {
+            return weatherUnknownIcon;
+        }
+
+        String w = condition.trim();
+
+        if (w.contains("雷")) return weatherThunderIcon;
+        if (w.contains("暴雨") || w.contains("大暴雨") || w.contains("特大暴雨")) return weatherStormRainIcon;
+        if (w.contains("大雨")) return weatherHeavyRainIcon;
+        if (w.contains("中雨")) return weatherModerateRainIcon;
+        if (w.contains("小雨") || w.contains("阵雨") || w.contains("毛毛雨") || w.contains("细雨")) return weatherLightRainIcon;
+        if (w.contains("雨夹雪") || w.contains("冻雨")) return weatherSleetIcon;
+        if (w.contains("雪")) return weatherSnowIcon;
+        if (w.contains("雾")) return weatherFogIcon;
+        if (w.contains("霾")) return weatherHazeIcon;
+        if (w.contains("沙") || w.contains("尘")) return weatherDustIcon;
+        if (w.contains("风")) return weatherWindIcon;
+        if (w.contains("阴")) return weatherOvercastIcon;
+        if (w.contains("云")) return weatherCloudyIcon;
+        if (w.contains("晴")) return isNightNow() ? weatherClearNightIcon : weatherSunnyIcon;
+
+        return weatherUnknownIcon;
+    }
+
+    private boolean isNightNow() {
+        try {
+            int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+            return hour >= 18 || hour < 6;
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     private void drawCommonAppsCard(Canvas c, RectF card) {
@@ -1065,24 +1226,23 @@ public class LauncherCanvasView extends View {
         titlePaint.setColor(Color.rgb(18, 18, 18));
         c.drawText("蓝牙电话", card.left + 28f, card.top + 38f, titlePaint);
 
-        titlePaint.setTextSize(24f);
-        titlePaint.setFakeBoldText(false);
-        titlePaint.setTextAlign(Paint.Align.RIGHT);
-        c.drawText("›", card.right - 28f, card.top + 39f, titlePaint);
-        titlePaint.setTextAlign(Paint.Align.LEFT);
+        // 整张 3 号卡片点击都已经能打开蓝牙音乐，这里去掉右上角 > 箭头，界面更干净。
+        // 手机图标固定贴右，设备名过长时在图标左侧自动省略，避免压到图标。
+        RectF phoneRect = new RectF(card.right - 82f, card.top + 24f, card.right - 22f, card.bottom - 18f);
+        drawBitmapFitCenter(c, phonePreviewIcon, phoneRect);
 
         String deviceName = getConnectedBluetoothDeviceName();
         subTextPaint.setTextAlign(Paint.Align.LEFT);
         subTextPaint.setTextSize(23f);
         subTextPaint.setColor(Color.rgb(35, 35, 35));
-        drawTextEllipsize(c, "已连接 " + deviceName, card.left + 28f, card.top + 86f, subTextPaint, card.width() - 118f);
+        float textLeft = card.left + 28f;
+        float textMaxWidth = Math.max(60f, phoneRect.left - textLeft - 16f);
+        drawTextEllipsize(c, "已连接 " + deviceName, textLeft, card.top + 86f, subTextPaint, textMaxWidth);
 
         // 用户提供的是三枚状态图标已经排好的一整张图：蓝牙、电量、信号。
-        // 这里直接作为一个整体绘制，不拆分、不重排。
+        // 这里继续作为一个整体绘制，不拆分、不打乱顺序。
         float iconY = card.top + 122f;
         drawBitmapFitCenter(c, btStatusGroupIcon, new RectF(card.left + 24f, iconY - 12f, card.left + 170f, iconY + 20f));
-
-        drawStaticPhonePreview(c, card);
     }
 
     private String getConnectedBluetoothDeviceName() {
@@ -1156,8 +1316,7 @@ public class LauncherCanvasView extends View {
     }
 
     private void drawStaticPhonePreview(Canvas c, RectF card) {
-        // 手机图标继续往左挪一点，右侧给“>”箭头留出更舒服的空间。
-        RectF phone = new RectF(card.right - 112f, card.top + 28f, card.right - 72f, card.bottom - 22f);
+        RectF phone = new RectF(card.right - 82f, card.top + 24f, card.right - 22f, card.bottom - 18f);
         drawBitmapFitCenter(c, phonePreviewIcon, phone);
     }
 
@@ -1564,6 +1723,12 @@ public class LauncherCanvasView extends View {
                         return true;
                     }
                 }
+
+                RectF card6 = new RectF(1970f, 546.5f, 2396f, 684.5f);
+                if (card6.contains(x, y)) {
+                    getContext().startActivity(new Intent(getContext(), WeatherSettingsActivity.class));
+                    return true;
+                }
             }
 
             if (activeIndex == 5) {
@@ -1707,12 +1872,18 @@ public class LauncherCanvasView extends View {
         if (vehicleDataProvider != null) {
             vehicleDataProvider.start();
         }
+        if (weatherProvider != null) {
+            weatherProvider.start();
+        }
     }
 
     @Override
     protected void onDetachedFromWindow() {
         if (vehicleDataProvider != null) {
             vehicleDataProvider.stop();
+        }
+        if (weatherProvider != null) {
+            weatherProvider.stop();
         }
         super.onDetachedFromWindow();
     }
@@ -1842,6 +2013,8 @@ public class LauncherCanvasView extends View {
                 openBluetoothMusicActivity();
             } else if (selectedCardIndex == 3) {
                 openFirstCommonApp();
+            } else if (selectedCardIndex == 5) {
+                getContext().startActivity(new Intent(getContext(), WeatherSettingsActivity.class));
             } else {
                 Toast.makeText(getContext(), (selectedCardIndex + 1) + "号卡片", Toast.LENGTH_SHORT).show();
             }
