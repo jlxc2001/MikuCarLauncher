@@ -102,14 +102,12 @@ public class LauncherCanvasView extends View {
 
 
     private void drawEmptyCards(Canvas c) {
-        // 按用户这一步的最新要求微调：
-        // 1、2、3 号卡片整体下移 18px；
-        // 4、5、6 号卡片整体上移 18px；
-        // 5 号卡片左右同时拉长，让它与 4、6 号卡片的间距都变成 18px。
-        RectF leftCard = new RectF(210f, 35.5f, 730f, 537.5f);
+        // 按用户最新要求微调：
+        // 1 号卡片、3 号卡片的底边上缩，直到与 4 号卡片保持 18px 间距。
+        RectF leftCard = new RectF(210f, 35.5f, 730f, 528.5f);
 
         RectF rightTopCard = new RectF(748f, 35.5f, 1140f, 350.5f);
-        RectF rightBottomCard = new RectF(748f, 368.5f, 1140f, 537.5f);
+        RectF rightBottomCard = new RectF(748f, 368.5f, 1140f, 528.5f);
 
         RectF bottomLeftCard = new RectF(210f, 546.5f, 1140f, 684.5f);
         RectF bottomMiddleCard = new RectF(1158f, 546.5f, 1952f, 684.5f);
