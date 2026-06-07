@@ -38,8 +38,9 @@ public class LauncherCanvasView extends View {
     private final float iconSize = 28f;
     private final float iconX = 22f;
     private final float textX = 68f;
-    private final float startY = 45f;
-    private final float gap = 20f;
+    // 7 个按钮纵向拉开，并保证顶部/底部留白一致。
+    private final float startY = 52f;
+    private final float gap = 35f;
 
     public LauncherCanvasView(Context context) {
         super(context);
