@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 6
-        versionName '0.1.5-selected-fullwidth'
+        versionCode 8
+        versionName '0.1.7-right-split-cards'
     }
 
     // GitHub 网页上传不会自动删除旧文件。

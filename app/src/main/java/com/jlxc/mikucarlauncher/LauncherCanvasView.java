@@ -102,18 +102,21 @@ public class LauncherCanvasView extends View {
 
 
     private void drawEmptyCards(Canvas c) {
-        // 按用户标注的两个红框位置先放空白卡片。
+        // 按用户最新标注：左边一个大卡片，右边拆成上下两个白底卡片。
         RectF leftCard = new RectF(210f, 44f, 730f, 470f);
-        RectF rightCard = new RectF(748f, 44f, 1140f, 470f);
+        RectF rightTopCard = new RectF(748f, 44f, 1140f, 272f);
+        RectF rightBottomCard = new RectF(748f, 286f, 1140f, 470f);
         float radius = 18f;
         c.drawRoundRect(leftCard, radius, radius, cardPaint);
-        c.drawRoundRect(rightCard, radius, radius, cardPaint);
+        c.drawRoundRect(rightTopCard, radius, radius, cardPaint);
+        c.drawRoundRect(rightBottomCard, radius, radius, cardPaint);
     }
 
     private void drawMenuItem(Canvas c, int index) {
         float y = startY + index * (btnH + gap);
         RectF r = new RectF(btnX, y, btnX + btnW, y + btnH);
-        RectF selectedRect = new RectF(0f, y, selectedBtnW, y + btnH);
+        // 选中背景在上下方向各扩展 gap/2，这样如果所有按钮都处于选中态，背景之间可无缝衔接。
+        RectF selectedRect = new RectF(0f, y - gap / 2f, selectedBtnW, y + btnH + gap / 2f);
         boolean active = index == activeIndex;
 
         if (active && selectedBg != null) {
