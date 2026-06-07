@@ -103,3 +103,10 @@ A4L 车机桌面项目。
 - 选择小组件后再走 AppWidgetManager.bindAppWidgetIdIfAllowed；没有绑定权限时再请求系统小组件绑定授权。
 - 1号卡片小组件显示逻辑不变，仍然只在首页显示，切到“应用/我的”时隐藏。
 - 首页 UI、左侧按钮列、1~6 号卡片位置保持不变。
+
+
+## v26
+- 1号卡片小组件改用 RoundedAppWidgetHostView 承载。
+- 通过 draw() + clipPath 圆角遮罩裁切小组件内容，使高德地图小组件四个角显示为圆角。
+- API 21+ 同时启用 Outline 裁剪，clipPath 作为兜底。
+- 保持 1号卡片位置、大小、白底卡片样式不变，只处理小组件自身四角。

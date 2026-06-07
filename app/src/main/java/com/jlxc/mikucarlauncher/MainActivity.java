@@ -1,7 +1,6 @@
 package com.jlxc.mikucarlauncher;
 
 import android.app.Activity;
-import android.appwidget.AppWidgetHost;
 import android.appwidget.AppWidgetHostView;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProviderInfo;
@@ -34,7 +33,7 @@ public class MainActivity extends Activity {
     private LauncherCanvasView launcherView;
     private FrameLayout rootLayout;
     private AppWidgetManager appWidgetManager;
-    private AppWidgetHost appWidgetHost;
+    private RoundedAppWidgetHost appWidgetHost;
     private AppWidgetHostView card1WidgetView;
     private int currentCard1WidgetId = -1;
 
@@ -45,7 +44,7 @@ public class MainActivity extends Activity {
         keepFullscreen();
 
         appWidgetManager = AppWidgetManager.getInstance(this);
-        appWidgetHost = new AppWidgetHost(this, APPWIDGET_HOST_ID);
+        appWidgetHost = new RoundedAppWidgetHost(this, APPWIDGET_HOST_ID);
 
         rootLayout = new FrameLayout(this);
 

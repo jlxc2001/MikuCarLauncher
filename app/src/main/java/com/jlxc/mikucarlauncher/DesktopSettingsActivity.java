@@ -1,7 +1,6 @@
 package com.jlxc.mikucarlauncher;
 
 import android.app.Activity;
-import android.appwidget.AppWidgetHost;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProviderInfo;
 import android.content.ComponentName;
@@ -31,7 +30,7 @@ public class DesktopSettingsActivity extends Activity {
     private TextView drawerStyleValue;
     private TextView card1WidgetValue;
 
-    private AppWidgetHost appWidgetHost;
+    private RoundedAppWidgetHost appWidgetHost;
     private AppWidgetManager appWidgetManager;
     private int pendingWidgetId = -1;
     private ComponentName pendingProvider;
@@ -39,7 +38,7 @@ public class DesktopSettingsActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        appWidgetHost = new AppWidgetHost(this, MainActivity.APPWIDGET_HOST_ID);
+        appWidgetHost = new RoundedAppWidgetHost(this, MainActivity.APPWIDGET_HOST_ID);
         appWidgetManager = AppWidgetManager.getInstance(this);
         keepFullscreen();
         buildUi();
