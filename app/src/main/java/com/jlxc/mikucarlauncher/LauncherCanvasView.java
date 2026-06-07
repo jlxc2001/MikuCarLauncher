@@ -20,6 +20,7 @@ import android.text.InputType;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.MotionEvent;
+import android.view.KeyEvent;
 import android.view.View;
 import android.widget.EditText;
 import android.widget.Toast;
@@ -89,8 +90,15 @@ public class LauncherCanvasView extends View {
     private final List<AppEntry> cachedApps = new ArrayList<>();
     private long lastAppLoadTime = 0L;
 
+    // 应用抽屉分页与实体按键选择状态。
+    private int appDrawerPage = 0;
+    private int selectedAppIndex = 0;
+
     public LauncherCanvasView(Context context) {
         super(context);
+        setFocusable(true);
+        setFocusableInTouchMode(true);
+        requestFocus();
         setLayerType(View.LAYER_TYPE_SOFTWARE, null);
 
         background = BitmapFactory.decodeResource(getResources(), R.drawable.bg_a4l);
@@ -194,6 +202,14 @@ public class LauncherCanvasView extends View {
         int textSize = clamp(sp.getInt("drawer_text_size_sp", 16), 10, 30);
 
         loadAppsIfNeeded();
+        int pageSize = Math.max(1, rows * columns);
+        int pageCount = getAppPageCount(pageSize);
+        appDrawerPage = clamp(appDrawerPage, 0, Math.max(0, pageCount - 1));
+
+        int pageStart = appDrawerPage * pageSize;
+        if (selectedAppIndex < pageStart || selectedAppIndex >= pageStart + pageSize) {
+            selectedAppIndex = Math.min(pageStart, Math.max(0, cachedApps.size() - 1));
+        }
 
         RectF pageCard = getLargePageCard();
         float radius = 24f;
@@ -204,34 +220,43 @@ public class LauncherCanvasView extends View {
 
         subTextPaint.setTextSize(20f);
         subTextPaint.setColor(Color.rgb(95, 95, 95));
-        c.drawText("平板式 " + rows + "×" + columns + " 网格 · 点击打开应用 · 长按隐藏应用", pageCard.left + 46f, pageCard.top + 94f, subTextPaint);
+        c.drawText("平板式 " + rows + "×" + columns + " 网格 · 左右滑动翻页 · 方向键选择 · 回车打开", pageCard.left + 46f, pageCard.top + 94f, subTextPaint);
 
         float gridLeft = pageCard.left + 56f;
         float gridTop = pageCard.top + 126f;
         float gridRight = pageCard.right - 56f;
-        float gridBottom = pageCard.bottom - 34f;
+        float gridBottom = pageCard.bottom - 46f;
         float cellW = (gridRight - gridLeft) / columns;
         float cellH = (gridBottom - gridTop) / rows;
 
-        int maxCount = Math.min(cachedApps.size(), rows * columns);
-        for (int i = 0; i < maxCount; i++) {
+        int pageEnd = Math.min(cachedApps.size(), pageStart + pageSize);
+        for (int i = pageStart; i < pageEnd; i++) {
             AppEntry app = cachedApps.get(i);
-            int row = i / columns;
-            int col = i % columns;
+            int pagePos = i - pageStart;
+            int row = pagePos / columns;
+            int col = pagePos % columns;
             float cellLeft = gridLeft + col * cellW;
             float cellTop = gridTop + row * cellH;
-            drawAppIconCell(c, app, cellLeft, cellTop, cellW, cellH, iconSize, textSize);
+            drawAppIconCell(c, app, cellLeft, cellTop, cellW, cellH, iconSize, textSize, i == selectedAppIndex);
         }
 
-        if (cachedApps.size() > rows * columns) {
-            smallTextPaint.setColor(Color.rgb(120, 120, 120));
-            smallTextPaint.setTextSize(18f);
-            smallTextPaint.setTextAlign(Paint.Align.RIGHT);
-            c.drawText("显示前 " + (rows * columns) + " 个应用，调整网格数量可显示更多", pageCard.right - 44f, pageCard.bottom - 18f, smallTextPaint);
-        }
+        drawPageIndicator(c, pageCard, pageCount);
     }
 
-    private void drawAppIconCell(Canvas c, AppEntry app, float cellLeft, float cellTop, float cellW, float cellH, int iconSizeDp, int textSizeSp) {
+    private void drawAppIconCell(Canvas c, AppEntry app, float cellLeft, float cellTop, float cellW, float cellH, int iconSizeDp, int textSizeSp, boolean selected) {
+        float cellPad = 8f;
+        if (selected) {
+            Paint selectedCellPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            selectedCellPaint.setColor(Color.rgb(235, 243, 255));
+            c.drawRoundRect(new RectF(cellLeft + cellPad, cellTop + cellPad, cellLeft + cellW - cellPad, cellTop + cellH - cellPad), 18f, 18f, selectedCellPaint);
+
+            Paint selectedStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            selectedStrokePaint.setStyle(Paint.Style.STROKE);
+            selectedStrokePaint.setStrokeWidth(3f);
+            selectedStrokePaint.setColor(Color.rgb(46, 120, 255));
+            c.drawRoundRect(new RectF(cellLeft + cellPad, cellTop + cellPad, cellLeft + cellW - cellPad, cellTop + cellH - cellPad), 18f, 18f, selectedStrokePaint);
+        }
+
         float iconPx = iconSizeDp;
         float iconLeft = cellLeft + (cellW - iconPx) / 2f;
         float iconTop = cellTop + 10f;
@@ -249,6 +274,30 @@ public class LauncherCanvasView extends View {
         String label = app.label;
         float textY = iconTop + iconPx + 26f;
         drawCenteredTextSingleLine(c, label, cellLeft + cellW / 2f, textY, labelPaint, cellW - 12f);
+    }
+
+    private void drawPageIndicator(Canvas c, RectF pageCard, int pageCount) {
+        if (pageCount <= 1) {
+            smallTextPaint.setColor(Color.rgb(120, 120, 120));
+            smallTextPaint.setTextSize(18f);
+            smallTextPaint.setTextAlign(Paint.Align.RIGHT);
+            c.drawText("共 " + cachedApps.size() + " 个应用", pageCard.right - 44f, pageCard.bottom - 18f, smallTextPaint);
+            return;
+        }
+
+        smallTextPaint.setColor(Color.rgb(120, 120, 120));
+        smallTextPaint.setTextSize(18f);
+        smallTextPaint.setTextAlign(Paint.Align.RIGHT);
+        c.drawText("第 " + (appDrawerPage + 1) + " / " + pageCount + " 页 · 共 " + cachedApps.size() + " 个应用", pageCard.right - 44f, pageCard.bottom - 18f, smallTextPaint);
+
+        Paint dotPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        float centerX = (pageCard.left + pageCard.right) / 2f;
+        float y = pageCard.bottom - 20f;
+        float startX = centerX - (pageCount - 1) * 10f;
+        for (int i = 0; i < pageCount; i++) {
+            dotPaint.setColor(i == appDrawerPage ? Color.rgb(46, 120, 255) : Color.rgb(190, 195, 205));
+            c.drawCircle(startX + i * 20f, y, i == appDrawerPage ? 5.5f : 4f, dotPaint);
+        }
     }
 
     private void drawMinePage(Canvas c) {
@@ -352,6 +401,9 @@ public class LauncherCanvasView extends View {
                 float by = startY + i * (btnH + gap);
                 if (x >= 0 && x <= sidebarW && y >= by - gap / 2f && y <= by + btnH + gap / 2f) {
                     activeIndex = i;
+                    if (activeIndex == 5) {
+                        clampAppDrawerSelection();
+                    }
                     invalidate();
                     if (menuClickListener != null) {
                         menuClickListener.onMenuClick(i, labels[i]);
@@ -361,6 +413,16 @@ public class LauncherCanvasView extends View {
             }
 
             if (activeIndex == 5) {
+                float dx = x - downDesignX;
+                float dy = y - downDesignY;
+                if (Math.abs(dx) > 120f && Math.abs(dx) > Math.abs(dy) * 1.4f) {
+                    if (dx < 0f) {
+                        moveAppDrawerPage(1);
+                    } else {
+                        moveAppDrawerPage(-1);
+                    }
+                    return true;
+                }
                 handleAppDrawerTouch(x, y, System.currentTimeMillis() - downTimeMs);
                 return true;
             } else if (activeIndex == 6) {
@@ -375,12 +437,13 @@ public class LauncherCanvasView extends View {
         SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         int columns = clamp(sp.getInt("drawer_grid_columns", 6), 3, 8);
         int rows = clamp(sp.getInt("drawer_grid_rows", 3), 1, 6);
+        int pageSize = Math.max(1, rows * columns);
 
         RectF pageCard = getLargePageCard();
         float gridLeft = pageCard.left + 56f;
         float gridTop = pageCard.top + 126f;
         float gridRight = pageCard.right - 56f;
-        float gridBottom = pageCard.bottom - 34f;
+        float gridBottom = pageCard.bottom - 46f;
 
         if (x < gridLeft || x > gridRight || y < gridTop || y > gridBottom) {
             return;
@@ -390,17 +453,20 @@ public class LauncherCanvasView extends View {
         float cellH = (gridBottom - gridTop) / rows;
         int col = (int) ((x - gridLeft) / cellW);
         int row = (int) ((y - gridTop) / cellH);
-        int index = row * columns + col;
+        int pageIndex = row * columns + col;
+        int index = appDrawerPage * pageSize + pageIndex;
 
         loadAppsIfNeeded();
-        if (index < 0 || index >= cachedApps.size() || index >= rows * columns) {
+        if (index < 0 || index >= cachedApps.size() || pageIndex >= pageSize) {
             return;
         }
 
+        selectedAppIndex = index;
         AppEntry app = cachedApps.get(index);
         if (durationMs >= 650) {
             hideApp(app.pkg, app.label);
         } else {
+            invalidate();
             openApp(app.label, app.pkg, app.cls);
         }
     }
@@ -459,6 +525,145 @@ public class LauncherCanvasView extends View {
                 .setNegativeButton("取消", null)
                 .create();
         dialog.show();
+    }
+
+    public boolean handleHardwareKey(int keyCode) {
+        if (activeIndex != 5) {
+            return false;
+        }
+
+        loadAppsIfNeeded();
+        if (cachedApps.isEmpty()) {
+            return true;
+        }
+
+        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        int columns = clamp(sp.getInt("drawer_grid_columns", 6), 3, 8);
+        int rows = clamp(sp.getInt("drawer_grid_rows", 3), 1, 6);
+        int pageSize = Math.max(1, rows * columns);
+
+        clampAppDrawerSelection();
+
+        if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
+            if (selectedAppIndex % columns == 0) {
+                moveAppDrawerPage(-1);
+            } else {
+                selectedAppIndex = Math.max(0, selectedAppIndex - 1);
+                appDrawerPage = selectedAppIndex / pageSize;
+                invalidate();
+            }
+            return true;
+        }
+
+        if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            if (selectedAppIndex % columns == columns - 1 || selectedAppIndex == cachedApps.size() - 1) {
+                moveAppDrawerPage(1);
+            } else {
+                selectedAppIndex = Math.min(cachedApps.size() - 1, selectedAppIndex + 1);
+                appDrawerPage = selectedAppIndex / pageSize;
+                invalidate();
+            }
+            return true;
+        }
+
+        if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
+            if (selectedAppIndex - columns >= appDrawerPage * pageSize) {
+                selectedAppIndex -= columns;
+                invalidate();
+            }
+            return true;
+        }
+
+        if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+            int next = selectedAppIndex + columns;
+            int pageEnd = Math.min(cachedApps.size(), (appDrawerPage + 1) * pageSize);
+            if (next < pageEnd) {
+                selectedAppIndex = next;
+                invalidate();
+            }
+            return true;
+        }
+
+        if (keyCode == KeyEvent.KEYCODE_DPAD_CENTER
+                || keyCode == KeyEvent.KEYCODE_ENTER
+                || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+            if (selectedAppIndex >= 0 && selectedAppIndex < cachedApps.size()) {
+                AppEntry app = cachedApps.get(selectedAppIndex);
+                openApp(app.label, app.pkg, app.cls);
+            }
+            return true;
+        }
+
+        if (keyCode == KeyEvent.KEYCODE_PAGE_DOWN) {
+            moveAppDrawerPage(1);
+            return true;
+        }
+
+        if (keyCode == KeyEvent.KEYCODE_PAGE_UP) {
+            moveAppDrawerPage(-1);
+            return true;
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (handleHardwareKey(keyCode)) {
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    private void moveAppDrawerPage(int delta) {
+        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        int columns = clamp(sp.getInt("drawer_grid_columns", 6), 3, 8);
+        int rows = clamp(sp.getInt("drawer_grid_rows", 3), 1, 6);
+        int pageSize = Math.max(1, rows * columns);
+
+        loadAppsIfNeeded();
+        int pageCount = getAppPageCount(pageSize);
+        if (pageCount <= 0) {
+            appDrawerPage = 0;
+            selectedAppIndex = 0;
+            invalidate();
+            return;
+        }
+
+        int nextPage = clamp(appDrawerPage + delta, 0, pageCount - 1);
+        appDrawerPage = nextPage;
+        selectedAppIndex = Math.min(cachedApps.size() - 1, appDrawerPage * pageSize);
+        invalidate();
+    }
+
+    private void clampAppDrawerSelection() {
+        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        int columns = clamp(sp.getInt("drawer_grid_columns", 6), 3, 8);
+        int rows = clamp(sp.getInt("drawer_grid_rows", 3), 1, 6);
+        int pageSize = Math.max(1, rows * columns);
+
+        loadAppsIfNeeded();
+        int pageCount = getAppPageCount(pageSize);
+        appDrawerPage = clamp(appDrawerPage, 0, Math.max(0, pageCount - 1));
+
+        if (cachedApps.isEmpty()) {
+            selectedAppIndex = 0;
+            return;
+        }
+
+        selectedAppIndex = clamp(selectedAppIndex, 0, cachedApps.size() - 1);
+        int pageStart = appDrawerPage * pageSize;
+        int pageEnd = Math.min(cachedApps.size(), pageStart + pageSize);
+        if (selectedAppIndex < pageStart || selectedAppIndex >= pageEnd) {
+            selectedAppIndex = pageStart;
+        }
+    }
+
+    private int getAppPageCount(int pageSize) {
+        if (cachedApps.isEmpty()) {
+            return 1;
+        }
+        return (cachedApps.size() + pageSize - 1) / pageSize;
     }
 
     private void openApp(String label, String pkg, String cls) {
