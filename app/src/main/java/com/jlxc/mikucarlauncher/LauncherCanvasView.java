@@ -69,6 +69,7 @@ public class LauncherCanvasView extends View {
     private final Bitmap btStatusIcon;
     private final Bitmap btBatteryIcon;
     private final Bitmap btSignalIcon;
+    private final Bitmap btStatusGroupIcon;
     private final Bitmap phonePreviewIcon;
     private final String[] labels = {"首页", "导航", "音乐", "车辆", "全景", "应用", "我的"};
 
@@ -112,6 +113,10 @@ public class LauncherCanvasView extends View {
     private final List<AppEntry> cachedApps = new ArrayList<>();
     private long lastAppLoadTime = 0L;
 
+    private final List<AppEntry> commonAppsCache = new ArrayList<>();
+    private final List<RectF> commonAppHitRects = new ArrayList<>();
+    private long lastCommonAppsLoadTime = 0L;
+
     // 应用抽屉分页与实体按键选择状态。
     private int appDrawerPage = 0;
     private int selectedAppIndex = 0;
@@ -154,6 +159,7 @@ public class LauncherCanvasView extends View {
         btStatusIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_bt_status_hd);
         btBatteryIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_bt_battery_hd);
         btSignalIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_bt_signal_hd);
+        btStatusGroupIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_bt_status_group_hd);
         phonePreviewIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_phone_hd);
 
         textPaint.setColor(Color.rgb(20, 20, 20));
@@ -249,6 +255,7 @@ public class LauncherCanvasView extends View {
 
         drawMusicPlayerCard(c, rightTopCard);
         drawBluetoothCard(c, rightBottomCard);
+        drawCommonAppsCard(c, bottomLeftCard);
 
         if (hardwareFocusVisible && focusArea == 1 && activeIndex == 0) {
             RectF[] cards = new RectF[]{leftCard, rightTopCard, rightBottomCard, bottomLeftCard, bottomMiddleCard, bottomRightCard};
@@ -661,6 +668,211 @@ public class LauncherCanvasView extends View {
         }
     }
 
+    private void drawCommonAppsCard(Canvas c, RectF card) {
+        loadCommonAppsIfNeeded();
+        commonAppHitRects.clear();
+
+        if (commonAppsCache.isEmpty()) {
+            subTextPaint.setTextAlign(Paint.Align.CENTER);
+            subTextPaint.setTextSize(22f);
+            subTextPaint.setColor(Color.rgb(95, 95, 95));
+            c.drawText("暂未设置常用软件", (card.left + card.right) / 2f, card.top + 54f, subTextPaint);
+            subTextPaint.setTextSize(18f);
+            subTextPaint.setColor(Color.rgb(46, 120, 255));
+            c.drawText("请到 我的 → 车机桌面设置 里添加", (card.left + card.right) / 2f, card.top + 90f, subTextPaint);
+            subTextPaint.setTextAlign(Paint.Align.LEFT);
+            return;
+        }
+
+        int count = commonAppsCache.size();
+        float leftPad = 24f;
+        float rightPad = 24f;
+        float cellW = (card.width() - leftPad - rightPad) / count;
+        float cellTop = card.top + 10f;
+        float cellBottom = card.bottom - 8f;
+        float iconSize = 54f;
+
+        for (int i = 0; i < count; i++) {
+            AppEntry app = commonAppsCache.get(i);
+            float cellLeft = card.left + leftPad + i * cellW;
+            float cellRight = cellLeft + cellW;
+            float centerX = (cellLeft + cellRight) / 2f;
+            float iconLeft = centerX - iconSize / 2f;
+            float iconTop = card.top + 18f;
+            if (app.icon != null) {
+                app.icon.setBounds((int) iconLeft, (int) iconTop, (int) (iconLeft + iconSize), (int) (iconTop + iconSize));
+                app.icon.draw(c);
+            }
+
+            smallTextPaint.setTextAlign(Paint.Align.CENTER);
+            smallTextPaint.setTextSize(18f);
+            smallTextPaint.setColor(Color.rgb(32, 32, 32));
+            drawCenteredTextSingleLine(c, app.label, centerX, card.top + 104f, smallTextPaint, cellW - 10f);
+
+            commonAppHitRects.add(new RectF(cellLeft, cellTop, cellRight, cellBottom));
+        }
+    }
+
+    private boolean handleCommonAppsTouch(float x, float y) {
+        loadCommonAppsIfNeeded();
+        for (int i = 0; i < commonAppHitRects.size() && i < commonAppsCache.size(); i++) {
+            if (commonAppHitRects.get(i).contains(x, y)) {
+                AppEntry app = commonAppsCache.get(i);
+                openApp(app.label, app.pkg, app.cls);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void openFirstCommonApp() {
+        loadCommonAppsIfNeeded();
+        if (!commonAppsCache.isEmpty()) {
+            AppEntry app = commonAppsCache.get(0);
+            openApp(app.label, app.pkg, app.cls);
+        } else {
+            Toast.makeText(getContext(), "4号卡片尚未设置常用软件", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void loadCommonAppsIfNeeded() {
+        long now = System.currentTimeMillis();
+        if (!commonAppsCache.isEmpty() && now - lastCommonAppsLoadTime < 2000L) {
+            return;
+        }
+
+        ensureCommonAppsConfigured();
+        commonAppsCache.clear();
+        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        PackageManager pm = getContext().getPackageManager();
+        for (int i = 0; i < 5; i++) {
+            String pkg = sp.getString("common_app_" + i + "_pkg", "");
+            String cls = sp.getString("common_app_" + i + "_cls", "");
+            String label = sp.getString("common_app_" + i + "_label", "");
+            if (pkg == null || pkg.length() == 0) {
+                continue;
+            }
+            Drawable icon = null;
+            try {
+                if (cls != null && cls.length() > 0) {
+                    icon = pm.getActivityIcon(new ComponentName(pkg, cls));
+                }
+            } catch (Throwable ignored) {
+            }
+            if (icon == null) {
+                try {
+                    icon = pm.getApplicationIcon(pkg);
+                } catch (Throwable ignored) {
+                }
+            }
+            if ((label == null || label.length() == 0) && cls != null && cls.length() > 0) {
+                try {
+                    label = String.valueOf(pm.getActivityInfo(new ComponentName(pkg, cls), 0).loadLabel(pm));
+                } catch (Throwable ignored) {
+                }
+            }
+            if (label == null || label.length() == 0) {
+                label = pkg;
+            }
+            commonAppsCache.add(new AppEntry(label, pkg, cls, icon));
+        }
+        lastCommonAppsLoadTime = now;
+    }
+
+    private void ensureCommonAppsConfigured() {
+        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (sp.getBoolean("common_apps_initialized", false)) {
+            return;
+        }
+
+        SharedPreferences.Editor editor = sp.edit();
+        saveCommonAppIfFound(editor, 0, resolveActionApp(new Intent(Intent.ACTION_DIAL), "电话"));
+
+        Intent msgIntent = new Intent(Intent.ACTION_MAIN);
+        msgIntent.addCategory(Intent.CATEGORY_APP_MESSAGING);
+        saveCommonAppIfFound(editor, 1, resolveActionApp(msgIntent, "短信"));
+
+        saveCommonAppIfFound(editor, 2, resolvePackageApp("网易云音乐", "com.netease.cloudmusic.iot", "com.netease.cloudmusic"));
+        saveCommonAppIfFound(editor, 3, resolvePackageApp("喜马拉雅", "com.ximalaya.ting.android.car", "com.ximalaya.ting.android"));
+
+        SharedPreferences pref = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String navPkg = pref.getString("nav_package", "com.autonavi.amapauto");
+        AppEntry navApp = resolvePackageApp("高德地图", navPkg, "com.autonavi.amapauto", "com.autonavi.minimap");
+        saveCommonAppIfFound(editor, 4, navApp);
+
+        editor.putBoolean("common_apps_initialized", true);
+        editor.apply();
+    }
+
+    private void saveCommonAppIfFound(SharedPreferences.Editor editor, int slot, AppEntry app) {
+        if (editor == null || app == null || app.pkg == null || app.pkg.length() == 0) {
+            return;
+        }
+        editor.putString("common_app_" + slot + "_pkg", app.pkg);
+        editor.putString("common_app_" + slot + "_cls", app.cls == null ? "" : app.cls);
+        editor.putString("common_app_" + slot + "_label", app.label == null ? "" : app.label);
+    }
+
+    private AppEntry resolveActionApp(Intent intent, String fallbackLabel) {
+        try {
+            PackageManager pm = getContext().getPackageManager();
+            ResolveInfo info = pm.resolveActivity(intent, 0);
+            if (info != null && info.activityInfo != null) {
+                String label = String.valueOf(info.loadLabel(pm));
+                String pkg = info.activityInfo.packageName;
+                String cls = info.activityInfo.name;
+                Drawable icon = info.loadIcon(pm);
+                if (label == null || label.length() == 0) {
+                    label = fallbackLabel;
+                }
+                return new AppEntry(label, pkg, cls, icon);
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
+    private AppEntry resolvePackageApp(String fallbackLabel, String... candidatePackages) {
+        PackageManager pm = getContext().getPackageManager();
+        if (candidatePackages == null) {
+            return null;
+        }
+        for (String pkg : candidatePackages) {
+            if (pkg == null || pkg.length() == 0) {
+                continue;
+            }
+            try {
+                Intent launch = pm.getLaunchIntentForPackage(pkg);
+                if (launch == null || launch.getComponent() == null) {
+                    continue;
+                }
+                String cls = launch.getComponent().getClassName();
+                String label = fallbackLabel;
+                Drawable icon = null;
+                try {
+                    ResolveInfo info = pm.resolveActivity(launch, 0);
+                    if (info != null) {
+                        CharSequence cs = info.loadLabel(pm);
+                        if (cs != null && cs.length() > 0) {
+                            label = cs.toString();
+                        }
+                        icon = info.loadIcon(pm);
+                    }
+                } catch (Throwable ignored) {
+                }
+                if (icon == null) {
+                    try {
+                        icon = pm.getApplicationIcon(pkg);
+                    } catch (Throwable ignored) {
+                    }
+                }
+                return new AppEntry(label, pkg, cls, icon);
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
     private void drawBluetoothCard(Canvas c, RectF card) {
         titlePaint.setTextAlign(Paint.Align.LEFT);
         titlePaint.setTextSize(22f);
@@ -680,10 +892,10 @@ public class LauncherCanvasView extends View {
         subTextPaint.setColor(Color.rgb(35, 35, 35));
         drawTextEllipsize(c, "已连接 " + deviceName, card.left + 28f, card.top + 86f, subTextPaint, card.width() - 118f);
 
+        // 用户提供的是三枚状态图标已经排好的一整张图：蓝牙、电量、信号。
+        // 这里直接作为一个整体绘制，不拆分、不重排。
         float iconY = card.top + 122f;
-        drawBitmapFitCenter(c, btStatusIcon, new RectF(card.left + 26f, iconY - 6f, card.left + 44f, iconY + 20f));
-        drawBitmapFitCenter(c, btBatteryIcon, new RectF(card.left + 50f, iconY - 10f, card.left + 92f, iconY + 14f));
-        drawBitmapFitCenter(c, btSignalIcon, new RectF(card.left + 98f, iconY - 10f, card.left + 136f, iconY + 16f));
+        drawBitmapFitCenter(c, btStatusGroupIcon, new RectF(card.left + 24f, iconY - 12f, card.left + 170f, iconY + 20f));
 
         drawStaticPhonePreview(c, card);
     }
@@ -759,7 +971,8 @@ public class LauncherCanvasView extends View {
     }
 
     private void drawStaticPhonePreview(Canvas c, RectF card) {
-        RectF phone = new RectF(card.right - 92f, card.top + 18f, card.right - 20f, card.bottom - 18f);
+        // 手机图标缩小，并让右侧给“>”箭头留出空间。
+        RectF phone = new RectF(card.right - 92f, card.top + 28f, card.right - 52f, card.bottom - 22f);
         drawBitmapFitCenter(c, phonePreviewIcon, phone);
     }
 
@@ -1138,9 +1351,17 @@ public class LauncherCanvasView extends View {
                 }
 
                 RectF card3 = new RectF(748f, 368.5f, 1140f, 528.5f);
+                // 3号蓝牙电话卡片：整张卡片任意区域点击都打开蓝牙音乐 Activity。
                 if (card3.contains(x, y)) {
                     openBluetoothMusicActivity();
                     return true;
+                }
+
+                RectF card4 = new RectF(210f, 546.5f, 1140f, 684.5f);
+                if (card4.contains(x, y)) {
+                    if (handleCommonAppsTouch(x, y)) {
+                        return true;
+                    }
                 }
             }
 
@@ -1402,6 +1623,8 @@ public class LauncherCanvasView extends View {
                 }
             } else if (selectedCardIndex == 2) {
                 openBluetoothMusicActivity();
+            } else if (selectedCardIndex == 3) {
+                openFirstCommonApp();
             } else {
                 Toast.makeText(getContext(), (selectedCardIndex + 1) + "号卡片", Toast.LENGTH_SHORT).show();
             }

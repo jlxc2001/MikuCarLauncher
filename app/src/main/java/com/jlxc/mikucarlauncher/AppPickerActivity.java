@@ -38,7 +38,18 @@ public class AppPickerActivity extends Activity {
         root.setBackgroundColor(Color.rgb(238, 241, 246));
 
         TextView title = new TextView(this);
-        title.setText("选择" + ("music".equals(target) ? "默认音乐软件" : "默认导航软件"));
+        String pageTitle;
+        if (target != null && target.startsWith("common_")) {
+            int slot = 0;
+            try {
+                slot = Integer.parseInt(target.substring("common_".length()));
+            } catch (Throwable ignored) {
+            }
+            pageTitle = "选择4号卡片位置" + (slot + 1) + "的应用";
+        } else {
+            pageTitle = "选择" + ("music".equals(target) ? "默认音乐软件" : "默认导航软件");
+        }
+        title.setText(pageTitle);
         title.setTextSize(32);
         title.setTextColor(Color.rgb(20, 20, 20));
         title.setGravity(Gravity.CENTER_VERTICAL);
@@ -64,6 +75,7 @@ public class AppPickerActivity extends Activity {
         for (final ResolveInfo info : apps) {
             final String label = String.valueOf(info.loadLabel(pm));
             final String pkg = info.activityInfo.packageName;
+            final String cls = info.activityInfo.name;
 
             TextView row = new TextView(this);
             row.setText(label + "\n" + pkg);
@@ -76,7 +88,16 @@ public class AppPickerActivity extends Activity {
                 @Override
                 public void onClick(View v) {
                     SharedPreferences.Editor editor = getSharedPreferences(PREFS, MODE_PRIVATE).edit();
-                    if ("music".equals(target)) {
+                    if (target != null && target.startsWith("common_")) {
+                        int slot = 0;
+                        try {
+                            slot = Integer.parseInt(target.substring("common_".length()));
+                        } catch (Throwable ignored) {
+                        }
+                        editor.putString("common_app_" + slot + "_pkg", pkg);
+                        editor.putString("common_app_" + slot + "_cls", cls);
+                        editor.putString("common_app_" + slot + "_label", label);
+                    } else if ("music".equals(target)) {
                         editor.putString("music_package", pkg);
                         editor.putString("music_label", label + " / " + pkg);
                     } else {

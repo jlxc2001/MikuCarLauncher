@@ -30,6 +30,7 @@ public class DesktopSettingsActivity extends Activity {
     private TextView musicValue;
     private TextView drawerStyleValue;
     private TextView card1WidgetValue;
+    private TextView commonAppsValue;
 
     private RoundedAppWidgetHost appWidgetHost;
     private AppWidgetManager appWidgetManager;
@@ -137,6 +138,15 @@ public class DesktopSettingsActivity extends Activity {
             }
         });
 
+        commonAppsValue = addValue(root, "4号卡片常用软件：");
+        Button commonAppsSettings = addButton(root, "设置 4号卡片常用软件");
+        commonAppsSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(DesktopSettingsActivity.this, CommonAppsSettingsActivity.class));
+            }
+        });
+
         Button hiddenApps = addButton(root, "隐藏应用抽屉里的软件");
         hiddenApps.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -206,6 +216,20 @@ public class DesktopSettingsActivity extends Activity {
             int columns = sp.getInt("drawer_grid_columns", 6);
             int rows = sp.getInt("drawer_grid_rows", 3);
             drawerStyleValue.setText("应用抽屉显示： " + rows + "×" + columns + "，图标 " + iconSize + "dp，文字 " + textSize + "sp");
+        }
+        if (commonAppsValue != null) {
+            StringBuilder sb = new StringBuilder();
+            int count = 0;
+            for (int i = 0; i < 5; i++) {
+                String pkg = sp.getString("common_app_" + i + "_pkg", "");
+                String label = sp.getString("common_app_" + i + "_label", "");
+                if (pkg != null && pkg.length() > 0) {
+                    if (sb.length() > 0) sb.append("、");
+                    sb.append(label == null || label.length() == 0 ? pkg : label);
+                    count++;
+                }
+            }
+            commonAppsValue.setText("4号卡片常用软件： " + (count > 0 ? ("已配置 " + count + " 个（" + sb.toString() + "）") : "未设置"));
         }
     }
 
