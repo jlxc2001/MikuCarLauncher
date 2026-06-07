@@ -27,6 +27,7 @@ public class LauncherCanvasView extends View {
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint activeTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint sidebarPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint cardPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private int activeIndex = 0;
 
@@ -35,6 +36,7 @@ public class LauncherCanvasView extends View {
     private final float sidebarW = 176f;
     private final float btnX = 0f;
     private final float btnW = 138f;
+    private final float selectedBtnW = sidebarW;
     private final float btnH = 58f;
     private final float iconSize = 28f;
     private final float iconX = 22f;
@@ -69,6 +71,9 @@ public class LauncherCanvasView extends View {
 
         // 左侧按钮列背景：比主背景略深一点的灰色，按用户参考图处理。
         sidebarPaint.setColor(Color.rgb(233, 236, 242));
+
+        // 中部两张白色卡片：先只放空白底卡，后续按用户指示再填内容。
+        cardPaint.setColor(Color.WHITE);
     }
 
     @Override
@@ -86,18 +91,34 @@ public class LauncherCanvasView extends View {
         c.drawBitmap(background, null, new RectF(0, 0, DESIGN_W, DESIGN_H), bitmapPaint);
         // 左侧功能列底板
         c.drawRect(0, 0, sidebarW, DESIGN_H, sidebarPaint);
+
+        // 用户指定的两个白底卡片位置（当前不加任何内容）
+        drawEmptyCards(c);
+
         for (int i = 0; i < labels.length; i++) {
             drawMenuItem(c, i);
         }
     }
 
+
+    private void drawEmptyCards(Canvas c) {
+        // 按用户标注的两个红框位置先放空白卡片。
+        RectF leftCard = new RectF(210f, 44f, 730f, 470f);
+        RectF rightCard = new RectF(748f, 44f, 1140f, 470f);
+        float radius = 18f;
+        c.drawRoundRect(leftCard, radius, radius, cardPaint);
+        c.drawRoundRect(rightCard, radius, radius, cardPaint);
+    }
+
     private void drawMenuItem(Canvas c, int index) {
         float y = startY + index * (btnH + gap);
         RectF r = new RectF(btnX, y, btnX + btnW, y + btnH);
+        RectF selectedRect = new RectF(0f, y, selectedBtnW, y + btnH);
         boolean active = index == activeIndex;
 
         if (active && selectedBg != null) {
-            c.drawBitmap(selectedBg, null, r, bitmapPaint);
+            // 选中背景按用户要求直接拉伸到整列宽度，避免右侧留白。
+            c.drawBitmap(selectedBg, null, selectedRect, bitmapPaint);
         }
 
         Bitmap icon = icons[index];
