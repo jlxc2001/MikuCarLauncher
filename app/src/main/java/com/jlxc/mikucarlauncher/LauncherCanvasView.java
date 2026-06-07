@@ -102,20 +102,18 @@ public class LauncherCanvasView extends View {
 
 
     private void drawEmptyCards(Canvas c) {
-        // 按用户最新编号说明微调：
-        // 1、2 顶边继续上拉，对齐左侧按钮背景的上边；
-        // 4、5、6 整体下移，对齐左侧底部按钮背景的下边；
-        // 为了保持上下视觉协调，再把 1、3 的下边继续下拉一些。
-        RectF leftCard = new RectF(210f, 17.5f, 730f, 519.5f);
+        // 按用户这一步的最新要求微调：
+        // 1、2、3 号卡片整体下移 18px；
+        // 4、5、6 号卡片整体上移 18px；
+        // 5 号卡片左右同时拉长，让它与 4、6 号卡片的间距都变成 18px。
+        RectF leftCard = new RectF(210f, 35.5f, 730f, 537.5f);
 
-        // 2 号卡片只上拉顶部；3 号卡片下边额外拉长一点。
-        RectF rightTopCard = new RectF(748f, 17.5f, 1140f, 332.5f);
-        RectF rightBottomCard = new RectF(748f, 350.5f, 1140f, 519.5f);
+        RectF rightTopCard = new RectF(748f, 35.5f, 1140f, 350.5f);
+        RectF rightBottomCard = new RectF(748f, 368.5f, 1140f, 537.5f);
 
-        // 4、5、6 统一下移到底部参考线附近，保持整排平行。
-        RectF bottomLeftCard = new RectF(210f, 564.5f, 1140f, 702.5f);
-        RectF bottomMiddleCard = new RectF(1170f, 564.5f, 1940f, 702.5f);
-        RectF bottomRightCard = new RectF(1970f, 564.5f, 2396f, 702.5f);
+        RectF bottomLeftCard = new RectF(210f, 546.5f, 1140f, 684.5f);
+        RectF bottomMiddleCard = new RectF(1158f, 546.5f, 1952f, 684.5f);
+        RectF bottomRightCard = new RectF(1970f, 546.5f, 2396f, 684.5f);
 
         float radius = 18f;
         c.drawRoundRect(leftCard, radius, radius, cardPaint);
