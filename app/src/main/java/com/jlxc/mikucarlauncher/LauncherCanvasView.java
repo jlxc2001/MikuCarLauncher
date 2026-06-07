@@ -12,6 +12,8 @@ import android.media.session.MediaController;
 import android.media.session.MediaSessionManager;
 import android.media.session.PlaybackState;
 import android.provider.Settings;
+import android.os.Handler;
+import android.os.Looper;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -113,6 +115,14 @@ public class LauncherCanvasView extends View {
     private final List<AppEntry> cachedApps = new ArrayList<>();
     private long lastAppLoadTime = 0L;
 
+    // 应用抽屉优化：不要在 UI 线程里同步扫描全部应用和图标。
+    // 老版本进入应用抽屉时会 queryIntentActivities + loadIcon，低配车机会明显卡顿。
+    // 现在改成后台线程加载，主线程只负责绘制已有缓存。
+    private final Handler mainHandler = new Handler(Looper.getMainLooper());
+    private boolean appListLoaded = false;
+    private boolean appListLoading = false;
+    private int appHiddenSignature = 0;
+
     private final List<AppEntry> commonAppsCache = new ArrayList<>();
     private final List<RectF> commonAppHitRects = new ArrayList<>();
     private long lastCommonAppsLoadTime = 0L;
@@ -161,6 +171,14 @@ public class LauncherCanvasView extends View {
         btSignalIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_bt_signal_hd);
         btStatusGroupIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_bt_status_group_hd);
         phonePreviewIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_phone_hd);
+
+        // 启动后后台预热应用抽屉缓存，避免第一次按“应用”才开始加载。
+        post(new Runnable() {
+            @Override
+            public void run() {
+                loadAppsIfNeeded();
+            }
+        });
 
         textPaint.setColor(Color.rgb(20, 20, 20));
         textPaint.setTextSize(24f);
@@ -443,26 +461,28 @@ public class LauncherCanvasView extends View {
 
     private void drawPrevIcon(Canvas c, RectF r) {
         Paint p = musicButtonPaint;
+        p.setStyle(Paint.Style.FILL);
         float cy = (r.top + r.bottom) / 2f;
-        p.setStrokeWidth(5f);
-        c.drawLine(r.left + 10f, cy - 13f, r.left + 10f, cy + 13f, p);
 
+        // 视觉尺寸比热区小，竖条和三角形分离，避免糊成一团。
+        c.drawRoundRect(new RectF(r.left + 8f, cy - 14f, r.left + 13f, cy + 14f), 1.5f, 1.5f, p);
         PathWrapper.drawTriangle(c, p,
-                r.left + 38f, cy - 16f,
-                r.left + 14f, cy,
-                r.left + 38f, cy + 16f);
+                r.left + 36f, cy - 16f,
+                r.left + 16f, cy,
+                r.left + 36f, cy + 16f);
     }
 
     private void drawNextIcon(Canvas c, RectF r) {
         Paint p = musicButtonPaint;
+        p.setStyle(Paint.Style.FILL);
         float cy = (r.top + r.bottom) / 2f;
-        p.setStrokeWidth(5f);
-        c.drawLine(r.right - 10f, cy - 13f, r.right - 10f, cy + 13f, p);
 
+        // 修复下一首图标：竖条放在三角形右侧，不再穿进三角形里。
         PathWrapper.drawTriangle(c, p,
-                r.left + 18f, cy - 16f,
-                r.left + 42f, cy,
-                r.left + 18f, cy + 16f);
+                r.left + 14f, cy - 16f,
+                r.left + 34f, cy,
+                r.left + 14f, cy + 16f);
+        c.drawRoundRect(new RectF(r.left + 38f, cy - 14f, r.left + 43f, cy + 14f), 1.5f, 1.5f, p);
     }
 
     private void drawPlayIcon(Canvas c, RectF r) {
@@ -745,7 +765,7 @@ public class LauncherCanvasView extends View {
         commonAppsCache.clear();
         SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         PackageManager pm = getContext().getPackageManager();
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 6; i++) {
             String pkg = sp.getString("common_app_" + i + "_pkg", "");
             String cls = sp.getString("common_app_" + i + "_cls", "");
             String label = sp.getString("common_app_" + i + "_label", "");
@@ -782,6 +802,12 @@ public class LauncherCanvasView extends View {
     private void ensureCommonAppsConfigured() {
         SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         if (sp.getBoolean("common_apps_initialized", false)) {
+            if ((sp.getString("common_app_5_pkg", "") == null || sp.getString("common_app_5_pkg", "").length() == 0)) {
+                SharedPreferences.Editor upgradeEditor = sp.edit();
+                AppEntry sixthApp = resolvePackageApp("应用商店", "com.xiaomi.market", "com.android.vending", "com.huawei.appmarket", "com.oppo.market", "com.bbk.appstore", "com.meizu.mstore", "com.lenovo.leos.appstore");
+                saveCommonAppIfFound(upgradeEditor, 5, sixthApp);
+                upgradeEditor.apply();
+            }
             return;
         }
 
@@ -799,6 +825,9 @@ public class LauncherCanvasView extends View {
         String navPkg = pref.getString("nav_package", "com.autonavi.amapauto");
         AppEntry navApp = resolvePackageApp("高德地图", navPkg, "com.autonavi.amapauto", "com.autonavi.minimap");
         saveCommonAppIfFound(editor, 4, navApp);
+
+        AppEntry sixthApp = resolvePackageApp("应用商店", "com.xiaomi.market", "com.android.vending", "com.huawei.appmarket", "com.oppo.market", "com.bbk.appstore", "com.meizu.mstore", "com.lenovo.leos.appstore");
+        saveCommonAppIfFound(editor, 5, sixthApp);
 
         editor.putBoolean("common_apps_initialized", true);
         editor.apply();
@@ -971,8 +1000,8 @@ public class LauncherCanvasView extends View {
     }
 
     private void drawStaticPhonePreview(Canvas c, RectF card) {
-        // 手机图标缩小，并让右侧给“>”箭头留出空间。
-        RectF phone = new RectF(card.right - 92f, card.top + 28f, card.right - 52f, card.bottom - 22f);
+        // 手机图标继续往左挪一点，右侧给“>”箭头留出更舒服的空间。
+        RectF phone = new RectF(card.right - 112f, card.top + 28f, card.right - 72f, card.bottom - 22f);
         drawBitmapFitCenter(c, phonePreviewIcon, phone);
     }
 
@@ -1052,7 +1081,9 @@ public class LauncherCanvasView extends View {
         c.clipRect(gridLeft, gridTop, gridRight, gridBottom);
 
         float contentWidth = gridRight - gridLeft;
-        if (appPageAnimating) {
+        if (cachedApps.isEmpty()) {
+            drawAppDrawerLoadingOrEmpty(c, gridLeft, gridTop, gridRight, gridBottom);
+        } else if (appPageAnimating) {
             float progress = (System.currentTimeMillis() - appAnimStartMs) / (float) APP_PAGE_ANIM_DURATION_MS;
             if (progress >= 1f) {
                 progress = 1f;
@@ -1076,6 +1107,20 @@ public class LauncherCanvasView extends View {
 
         c.restore();
         drawPageIndicator(c, pageCard, pageCount);
+    }
+
+    private void drawAppDrawerLoadingOrEmpty(Canvas c, float gridLeft, float gridTop, float gridRight, float gridBottom) {
+        subTextPaint.setTextAlign(Paint.Align.CENTER);
+        subTextPaint.setTextSize(26f);
+        subTextPaint.setColor(Color.rgb(90, 90, 90));
+        String text = appListLoading ? "应用列表加载中…" : "暂无可显示应用";
+        c.drawText(text, (gridLeft + gridRight) / 2f, (gridTop + gridBottom) / 2f - 10f, subTextPaint);
+
+        subTextPaint.setTextSize(18f);
+        subTextPaint.setColor(Color.rgb(130, 130, 130));
+        String sub = appListLoading ? "首次加载会在后台扫描应用，不会卡住主界面" : "可到设置里检查隐藏应用列表";
+        c.drawText(sub, (gridLeft + gridRight) / 2f, (gridTop + gridBottom) / 2f + 28f, subTextPaint);
+        subTextPaint.setTextAlign(Paint.Align.LEFT);
     }
 
     private void drawAppPageCells(Canvas c, int page, float offsetX, int columns, int rows, int iconSize, int textSize,
@@ -1437,7 +1482,7 @@ public class LauncherCanvasView extends View {
         }
 
         int index = -1;
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 6; i++) {
             float top = rowTop + i * (rowH + rowGap);
             if (y >= top && y <= top + rowH) {
                 index = i;
@@ -1845,7 +1890,17 @@ public class LauncherCanvasView extends View {
         try {
             Intent launch = new Intent(Intent.ACTION_MAIN);
             launch.addCategory(Intent.CATEGORY_LAUNCHER);
-            launch.setClassName(pkg, cls);
+            if (cls != null && cls.length() > 0) {
+                launch.setClassName(pkg, cls);
+            } else {
+                Intent fallback = getContext().getPackageManager().getLaunchIntentForPackage(pkg);
+                if (fallback != null) {
+                    fallback.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    getContext().startActivity(fallback);
+                    return;
+                }
+                launch.setPackage(pkg);
+            }
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             getContext().startActivity(launch);
         } catch (Throwable t) {
@@ -1860,50 +1915,129 @@ public class LauncherCanvasView extends View {
         sp.edit().putStringSet("hidden_apps", hidden).apply();
         cachedApps.clear();
         lastAppLoadTime = 0L;
+        appListLoaded = false;
+        appListLoading = false;
         Toast.makeText(getContext(), "已隐藏：" + label, Toast.LENGTH_SHORT).show();
         invalidate();
     }
 
     private void loadAppsIfNeeded() {
-        long now = System.currentTimeMillis();
-        if (!cachedApps.isEmpty() && now - lastAppLoadTime < 2000L) {
+        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        Set<String> hidden = new HashSet<String>(sp.getStringSet("hidden_apps", new HashSet<String>()));
+        final int hiddenSignature = hidden.hashCode();
+
+        // 缓存已加载且隐藏列表没变，就直接用缓存，不要每 2 秒重新扫描。
+        if (appListLoaded && hiddenSignature == appHiddenSignature) {
             return;
         }
 
-        cachedApps.clear();
-        final PackageManager pm = getContext().getPackageManager();
-        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        Set<String> hidden = new HashSet<String>(sp.getStringSet("hidden_apps", new HashSet<String>()));
-
-        Intent queryIntent = new Intent(Intent.ACTION_MAIN, null);
-        queryIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-        List<ResolveInfo> apps = pm.queryIntentActivities(queryIntent, 0);
-        Collections.sort(apps, new Comparator<ResolveInfo>() {
-            @Override
-            public int compare(ResolveInfo a, ResolveInfo b) {
-                return String.valueOf(a.loadLabel(pm)).compareToIgnoreCase(String.valueOf(b.loadLabel(pm)));
-            }
-        });
-
-        for (ResolveInfo info : apps) {
-            String label = String.valueOf(info.loadLabel(pm));
-            String pkg = info.activityInfo.packageName;
-            String cls = info.activityInfo.name;
-            if (hidden.contains(pkg)) {
-                continue;
-            }
-
-            Drawable icon;
-            try {
-                icon = info.loadIcon(pm);
-            } catch (Throwable t) {
-                icon = null;
-            }
-
-            cachedApps.add(new AppEntry(label, pkg, cls, icon));
+        if (appListLoading) {
+            return;
         }
 
-        lastAppLoadTime = now;
+        appListLoading = true;
+        appHiddenSignature = hiddenSignature;
+
+        final Context appContext = getContext().getApplicationContext();
+        final Set<String> hiddenSnapshot = new HashSet<String>(hidden);
+
+        Thread worker = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                final List<AppEntry> result = new ArrayList<AppEntry>();
+                final PackageManager pm = appContext.getPackageManager();
+
+                try {
+                    Intent queryIntent = new Intent(Intent.ACTION_MAIN, null);
+                    queryIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+                    List<ResolveInfo> apps = pm.queryIntentActivities(queryIntent, 0);
+
+                    final java.util.Map<ResolveInfo, String> labelCache = new java.util.HashMap<ResolveInfo, String>();
+                    for (ResolveInfo info : apps) {
+                        try {
+                            labelCache.put(info, String.valueOf(info.loadLabel(pm)));
+                        } catch (Throwable t) {
+                            labelCache.put(info, "");
+                        }
+                    }
+
+                    Collections.sort(apps, new Comparator<ResolveInfo>() {
+                        @Override
+                        public int compare(ResolveInfo a, ResolveInfo b) {
+                            String la = labelCache.get(a);
+                            String lb = labelCache.get(b);
+                            if (la == null) la = "";
+                            if (lb == null) lb = "";
+                            return la.compareToIgnoreCase(lb);
+                        }
+                    });
+
+                    for (ResolveInfo info : apps) {
+                        if (info == null || info.activityInfo == null) {
+                            continue;
+                        }
+
+                        String label = labelCache.get(info);
+                        if (label == null || label.length() == 0) {
+                            label = String.valueOf(info.loadLabel(pm));
+                        }
+
+                        String pkg = info.activityInfo.packageName;
+                        String cls = info.activityInfo.name;
+                        if (hiddenSnapshot.contains(pkg)) {
+                            continue;
+                        }
+
+                        Drawable icon;
+                        try {
+                            icon = info.loadIcon(pm);
+                        } catch (Throwable t) {
+                            icon = null;
+                        }
+
+                        result.add(new AppEntry(label, pkg, cls, icon));
+                    }
+                } catch (Throwable ignored) {
+                }
+
+                mainHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        cachedApps.clear();
+                        cachedApps.addAll(result);
+                        lastAppLoadTime = System.currentTimeMillis();
+                        appListLoaded = true;
+                        appListLoading = false;
+                        clampAppDrawerSelectionAfterLoad();
+                        invalidate();
+                    }
+                });
+            }
+        }, "MikuCarLauncher-AppDrawerLoader");
+
+        worker.setPriority(Thread.MIN_PRIORITY);
+        worker.start();
+    }
+
+    private void clampAppDrawerSelectionAfterLoad() {
+        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        int columns = clamp(sp.getInt("drawer_grid_columns", 6), 3, 8);
+        int rows = clamp(sp.getInt("drawer_grid_rows", 3), 1, 6);
+        int pageSize = Math.max(1, rows * columns);
+        int pageCount = getAppPageCount(pageSize);
+        appDrawerPage = clamp(appDrawerPage, 0, Math.max(0, pageCount - 1));
+
+        if (cachedApps.isEmpty()) {
+            selectedAppIndex = 0;
+            return;
+        }
+
+        int pageStart = appDrawerPage * pageSize;
+        int pageEnd = Math.min(cachedApps.size(), pageStart + pageSize);
+        selectedAppIndex = clamp(selectedAppIndex, 0, cachedApps.size() - 1);
+        if (selectedAppIndex < pageStart || selectedAppIndex >= pageEnd) {
+            selectedAppIndex = pageStart;
+        }
     }
 
     private void drawFocusStroke(Canvas c, RectF r) {

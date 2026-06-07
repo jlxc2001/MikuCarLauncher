@@ -220,7 +220,7 @@ public class DesktopSettingsActivity extends Activity {
         if (commonAppsValue != null) {
             StringBuilder sb = new StringBuilder();
             int count = 0;
-            for (int i = 0; i < 5; i++) {
+            for (int i = 0; i < 6; i++) {
                 String pkg = sp.getString("common_app_" + i + "_pkg", "");
                 String label = sp.getString("common_app_" + i + "_label", "");
                 if (pkg != null && pkg.length() > 0) {
