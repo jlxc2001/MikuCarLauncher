@@ -105,9 +105,10 @@ public class LauncherCanvasView extends View {
         // 左边保留一个大卡片。
         RectF leftCard = new RectF(210f, 44f, 730f, 470f);
 
-        // 右上/右下卡片：按用户要求，上面的更厚一些，下面的更扁一些。
-        RectF rightTopCard = new RectF(748f, 44f, 1140f, 329f);
-        RectF rightBottomCard = new RectF(748f, 343f, 1140f, 481f);
+        // 右上/右下卡片：修正为和左侧卡片上下边、以及中间缝隙都严格对齐。
+        // 这样左/右列之间、以及上下卡片之间的间距保持一致，视觉更平行统一。
+        RectF rightTopCard = new RectF(748f, 44f, 1140f, 314f);
+        RectF rightBottomCard = new RectF(748f, 332f, 1140f, 470f);
 
         // 底部新增 3 个白底卡片，位置按用户红框示意放置。
         RectF bottomLeftCard = new RectF(214f, 514f, 1140f, 652f);
