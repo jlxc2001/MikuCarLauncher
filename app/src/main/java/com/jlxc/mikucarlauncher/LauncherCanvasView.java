@@ -66,6 +66,10 @@ public class LauncherCanvasView extends View {
     private final Bitmap background;
     private final Bitmap selectedBg;
     private final Bitmap[] icons = new Bitmap[7];
+    private final Bitmap btStatusIcon;
+    private final Bitmap btBatteryIcon;
+    private final Bitmap btSignalIcon;
+    private final Bitmap phonePreviewIcon;
     private final String[] labels = {"首页", "导航", "音乐", "车辆", "全景", "应用", "我的"};
 
     private final Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
@@ -146,6 +150,11 @@ public class LauncherCanvasView extends View {
         icons[4] = BitmapFactory.decodeResource(getResources(), R.drawable.ic_panorama);
         icons[5] = BitmapFactory.decodeResource(getResources(), R.drawable.ic_apps);
         icons[6] = BitmapFactory.decodeResource(getResources(), R.drawable.ic_mine);
+
+        btStatusIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_bt_status_hd);
+        btBatteryIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_bt_battery_hd);
+        btSignalIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_bt_signal_hd);
+        phonePreviewIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_phone_hd);
 
         textPaint.setColor(Color.rgb(20, 20, 20));
         textPaint.setTextSize(24f);
@@ -671,10 +680,10 @@ public class LauncherCanvasView extends View {
         subTextPaint.setColor(Color.rgb(35, 35, 35));
         drawTextEllipsize(c, "已连接 " + deviceName, card.left + 28f, card.top + 86f, subTextPaint, card.width() - 118f);
 
-        float iconY = card.top + 126f;
-        drawBluetoothStaticIcon(c, card.left + 30f, iconY);
-        drawBatteryStaticIcon(c, card.left + 62f, iconY - 14f);
-        drawSignalStaticIcon(c, card.left + 112f, iconY - 18f);
+        float iconY = card.top + 122f;
+        drawBitmapFitCenter(c, btStatusIcon, new RectF(card.left + 26f, iconY - 6f, card.left + 44f, iconY + 20f));
+        drawBitmapFitCenter(c, btBatteryIcon, new RectF(card.left + 50f, iconY - 10f, card.left + 92f, iconY + 14f));
+        drawBitmapFitCenter(c, btSignalIcon, new RectF(card.left + 98f, iconY - 10f, card.left + 136f, iconY + 16f));
 
         drawStaticPhonePreview(c, card);
     }
@@ -750,18 +759,24 @@ public class LauncherCanvasView extends View {
     }
 
     private void drawStaticPhonePreview(Canvas c, RectF card) {
-        RectF phone = new RectF(card.right - 82f, card.top + 28f, card.right - 30f, card.bottom - 24f);
-        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setColor(Color.rgb(225, 228, 232));
-        c.drawRoundRect(phone, 10f, 10f, p);
+        RectF phone = new RectF(card.right - 92f, card.top + 18f, card.right - 20f, card.bottom - 18f);
+        drawBitmapFitCenter(c, phonePreviewIcon, phone);
+    }
 
-        p.setColor(Color.rgb(245, 247, 249));
-        c.drawRoundRect(new RectF(phone.left + 5f, phone.top + 5f, phone.right - 5f, phone.bottom - 5f), 8f, 8f, p);
-
-        p.setColor(Color.rgb(18, 18, 18));
-        c.drawCircle(phone.right - 18f, phone.top + 18f, 12f, p);
-        p.setColor(Color.rgb(60, 60, 60));
-        c.drawCircle(phone.right - 18f, phone.top + 18f, 7f, p);
+    private void drawBitmapFitCenter(Canvas c, Bitmap bitmap, RectF dst) {
+        if (bitmap == null) {
+            return;
+        }
+        float bw = bitmap.getWidth();
+        float bh = bitmap.getHeight();
+        float dw = dst.width();
+        float dh = dst.height();
+        float scale = Math.min(dw / bw, dh / bh);
+        float rw = bw * scale;
+        float rh = bh * scale;
+        float left = dst.left + (dw - rw) / 2f;
+        float top = dst.top + (dh - rh) / 2f;
+        c.drawBitmap(bitmap, null, new RectF(left, top, left + rw, top + rh), bitmapPaint);
     }
 
     private void drawRoundedBitmap(Canvas c, Bitmap bitmap, RectF dst, float radius) {
