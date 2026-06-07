@@ -9,6 +9,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.view.KeyEvent;
 import android.view.WindowManager;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -134,4 +135,13 @@ public class AppPickerActivity extends Activity {
                         | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         );
     }
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (HomeKeyHelper.handle(this, event)) {
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+
 }

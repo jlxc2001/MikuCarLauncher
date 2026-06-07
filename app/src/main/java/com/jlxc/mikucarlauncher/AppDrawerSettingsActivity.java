@@ -8,6 +8,7 @@ import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.KeyEvent;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
@@ -184,4 +185,13 @@ public class AppDrawerSettingsActivity extends Activity {
         super.onResume();
         keepFullscreen();
     }
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (HomeKeyHelper.handle(this, event)) {
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+
 }

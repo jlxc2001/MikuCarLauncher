@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.View;
+import android.view.KeyEvent;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
@@ -165,4 +166,13 @@ public class SettingsActivity extends Activity {
         if (navValue != null) navValue.setText("默认导航软件： " + sp.getString("nav_label", "高德地图车机版 / com.autonavi.amapauto"));
         if (musicValue != null) musicValue.setText("默认音乐软件： " + sp.getString("music_label", "车机蓝牙音乐 / com.ts.MainUI"));
     }
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (HomeKeyHelper.handle(this, event)) {
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+
 }

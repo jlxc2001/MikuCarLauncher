@@ -11,6 +11,7 @@ import android.media.MediaMetadata;
 import android.media.session.MediaController;
 import android.media.session.MediaSessionManager;
 import android.media.session.PlaybackState;
+import android.net.Uri;
 import android.provider.Settings;
 import android.os.Handler;
 import android.os.Looper;
@@ -62,11 +63,25 @@ public class LauncherCanvasView extends View {
         return activeIndex;
     }
 
+    public void showHomePage() {
+        activeIndex = 0;
+        sidebarFocusIndex = 0;
+        focusArea = 0;
+        selectedCardIndex = 0;
+        selectedMineRowIndex = 0;
+        hardwareFocusVisible = false;
+        appSelectionVisible = false;
+        pressedMusicButton = -1;
+        invalidate();
+    }
+
     // 固定 32:9 车机画布。背景图保持用户指定版本，不做裁切替换。
     private static final float DESIGN_W = 2560f;
     private static final float DESIGN_H = 720f;
 
     private final Bitmap background;
+    private Bitmap customBackground;
+    private String customBackgroundUri;
     private final Bitmap selectedBg;
     private final Bitmap[] icons = new Bitmap[7];
     private final Bitmap btStatusIcon;
@@ -280,8 +295,42 @@ public class LauncherCanvasView extends View {
         canvas.restore();
     }
 
+    private void drawAppBackground(Canvas c) {
+        Bitmap bg = getCurrentBackground();
+        c.drawBitmap(bg, null, new RectF(0, 0, DESIGN_W, DESIGN_H), bitmapPaint);
+    }
+
+    private Bitmap getCurrentBackground() {
+        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String uriText = sp.getString("app_background_uri", "");
+        if (uriText == null || uriText.length() == 0) {
+            customBackgroundUri = "";
+            customBackground = null;
+            return background;
+        }
+
+        if (uriText.equals(customBackgroundUri) && customBackground != null) {
+            return customBackground;
+        }
+
+        customBackgroundUri = uriText;
+        customBackground = null;
+        try {
+            android.content.ContentResolver resolver = getContext().getContentResolver();
+            java.io.InputStream input = resolver.openInputStream(Uri.parse(uriText));
+            if (input != null) {
+                customBackground = BitmapFactory.decodeStream(input);
+                input.close();
+            }
+        } catch (Throwable ignored) {
+            customBackground = null;
+        }
+
+        return customBackground != null ? customBackground : background;
+    }
+
     private void drawDesign(Canvas c) {
-        c.drawBitmap(background, null, new RectF(0, 0, DESIGN_W, DESIGN_H), bitmapPaint);
+        drawAppBackground(c);
 
         // 左侧功能列底板，无论在哪个页面都一直保留。
         c.drawRect(0, 0, sidebarW, DESIGN_H, sidebarPaint);
@@ -326,6 +375,7 @@ public class LauncherCanvasView extends View {
         drawCommonAppsCard(c, bottomLeftCard);
         drawVehicleStatusCard(c, bottomMiddleCard);
         drawWeatherCard(c, bottomRightCard);
+        drawGreetingArea(c);
 
         if (hardwareFocusVisible && focusArea == 1 && activeIndex == 0) {
             RectF[] cards = new RectF[]{leftCard, rightTopCard, rightBottomCard, bottomLeftCard, bottomMiddleCard, bottomRightCard};
@@ -925,6 +975,40 @@ public class LauncherCanvasView extends View {
         c.drawPath(path, stroke);
     }
 
+    private void drawGreetingArea(Canvas c) {
+        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String ownerName = sp.getString("owner_name", "奥迪");
+        String signature = sp.getString("signature", "专注当下，尽享驾趣");
+        if (ownerName == null || ownerName.trim().length() == 0) {
+            ownerName = "奥迪";
+        }
+        if (signature == null || signature.trim().length() == 0) {
+            signature = "专注当下，尽享驾趣";
+        }
+
+        String hello = getTimeGreeting() + "， " + ownerName;
+
+        titlePaint.setTextAlign(Paint.Align.LEFT);
+        titlePaint.setFakeBoldText(true);
+        titlePaint.setTextSize(43f);
+        titlePaint.setColor(Color.rgb(20, 20, 20));
+        drawTextEllipsize(c, hello, 1200f, 142f, titlePaint, 620f);
+
+        subTextPaint.setTextAlign(Paint.Align.LEFT);
+        subTextPaint.setTextSize(21f);
+        subTextPaint.setColor(Color.rgb(60, 60, 60));
+        drawTextEllipsize(c, signature, 1204f, 184f, subTextPaint, 620f);
+    }
+
+    private String getTimeGreeting() {
+        try {
+            int hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
+            return hour < 12 ? "上午好" : "下午好";
+        } catch (Throwable ignored) {
+            return "下午好";
+        }
+    }
+
     private void drawWeatherCard(Canvas c, RectF card) {
         WeatherProvider.Snapshot weather = weatherProvider == null
                 ? WeatherProvider.Snapshot.empty()
@@ -961,7 +1045,9 @@ public class LauncherCanvasView extends View {
 
         subTextPaint.setTextSize(16f);
         subTextPaint.setColor(Color.rgb(105, 105, 105));
-        String bottomLine = weather.valid ? "高德天气" : (weather.needsSetup ? "点击设置 Key" : "稍后重试");
+        String bottomLine = weather.valid
+                ? (weather.aqi != null && weather.aqi.length() > 0 ? ("空气 " + weather.aqi) : "中国天气")
+                : "稍后重试";
         c.drawText(bottomLine, card.left + 28f, card.top + 132f, subTextPaint);
 
         Bitmap icon = pickWeatherIcon(weather.valid ? weather.weather : "");
@@ -1226,17 +1312,13 @@ public class LauncherCanvasView extends View {
         titlePaint.setColor(Color.rgb(18, 18, 18));
         c.drawText("蓝牙电话", card.left + 28f, card.top + 38f, titlePaint);
 
-        // 整张 3 号卡片点击都已经能打开蓝牙音乐，这里去掉右上角 > 箭头，界面更干净。
-        // 手机图标固定贴右，设备名过长时在图标左侧自动省略，避免压到图标。
-        RectF phoneRect = new RectF(card.right - 82f, card.top + 24f, card.right - 22f, card.bottom - 18f);
-        drawBitmapFitCenter(c, phonePreviewIcon, phoneRect);
-
+        // 整张 3 号卡片点击都已经能打开蓝牙音乐；按用户要求删除右侧手机图标。
         String deviceName = getConnectedBluetoothDeviceName();
         subTextPaint.setTextAlign(Paint.Align.LEFT);
         subTextPaint.setTextSize(23f);
         subTextPaint.setColor(Color.rgb(35, 35, 35));
         float textLeft = card.left + 28f;
-        float textMaxWidth = Math.max(60f, phoneRect.left - textLeft - 16f);
+        float textMaxWidth = Math.max(80f, card.width() - 56f);
         drawTextEllipsize(c, "已连接 " + deviceName, textLeft, card.top + 86f, subTextPaint, textMaxWidth);
 
         // 用户提供的是三枚状态图标已经排好的一整张图：蓝牙、电量、信号。

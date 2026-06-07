@@ -6,12 +6,16 @@ import android.appwidget.AppWidgetProviderInfo;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.Cursor;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.provider.OpenableColumns;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.KeyEvent;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -25,6 +29,7 @@ public class DesktopSettingsActivity extends Activity {
     private static final int REQ_SELECT_WIDGET_PROVIDER = 2501;
     private static final int REQ_BIND_WIDGET = 2502;
     private static final int REQ_CONFIG_WIDGET = 2503;
+    private static final int REQ_PICK_BACKGROUND = 2601;
 
     private TextView navValue;
     private TextView musicValue;
@@ -32,6 +37,7 @@ public class DesktopSettingsActivity extends Activity {
     private TextView card1WidgetValue;
     private TextView commonAppsValue;
     private TextView weatherValue;
+    private TextView backgroundValue;
 
     private RoundedAppWidgetHost appWidgetHost;
     private AppWidgetManager appWidgetManager;
@@ -157,6 +163,23 @@ public class DesktopSettingsActivity extends Activity {
             }
         });
 
+        backgroundValue = addValue(root, "APP背景：");
+        Button chooseBackground = addButton(root, "更换APP背景图片");
+        chooseBackground.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                pickAppBackground();
+            }
+        });
+
+        Button resetBackground = addButton(root, "恢复默认APP背景");
+        resetBackground.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                resetAppBackground();
+            }
+        });
+
         Button hiddenApps = addButton(root, "隐藏应用抽屉里的软件");
         hiddenApps.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -242,11 +265,72 @@ public class DesktopSettingsActivity extends Activity {
             commonAppsValue.setText("4号卡片常用软件： " + (count > 0 ? ("已配置 " + count + " 个（" + sb.toString() + "）") : "未设置"));
         }
         if (weatherValue != null) {
-            String city = sp.getString(WeatherProvider.PREF_WEATHER_CITY_NAME, "萍乡");
-            String code = sp.getString(WeatherProvider.PREF_WEATHER_CITY_CODE, "360300");
-            String key = sp.getString(WeatherProvider.PREF_WEATHER_AMAP_KEY, "");
-            weatherValue.setText("6号卡片天气： " + city + " / " + code + (key == null || key.length() == 0 ? "，未设置 Key" : "，已设置 Key"));
+            String city = sp.getString(WeatherProvider.PREF_WEATHER_CITY_NAME, WeatherProvider.DEFAULT_CITY_NAME);
+            String code = sp.getString(WeatherProvider.PREF_WEATHER_CITY_CODE, WeatherProvider.DEFAULT_CITY_CODE);
+            if ("360300".equals(code) || code == null || !code.startsWith("101")) {
+                code = WeatherProvider.DEFAULT_CITY_CODE;
+            }
+            weatherValue.setText("6号卡片天气： " + city + " / 中国天气ID " + code);
         }
+        if (backgroundValue != null) {
+            String label = sp.getString("app_background_label", "默认背景");
+            backgroundValue.setText("APP背景： " + label);
+        }
+    }
+
+    private void pickAppBackground() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+            intent.addCategory(Intent.CATEGORY_OPENABLE);
+            intent.setType("image/*");
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            startActivityForResult(intent, REQ_PICK_BACKGROUND);
+        } catch (Throwable t) {
+            try {
+                Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+                intent.setType("image/*");
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                startActivityForResult(Intent.createChooser(intent, "选择APP背景图片"), REQ_PICK_BACKGROUND);
+            } catch (Throwable e) {
+                Toast.makeText(this, "无法打开图片选择器", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
+    private void resetAppBackground() {
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                .remove("app_background_uri")
+                .putString("app_background_label", "默认背景")
+                .apply();
+        Toast.makeText(this, "已恢复默认APP背景", Toast.LENGTH_SHORT).show();
+        refreshValues();
+    }
+
+    private String getDisplayName(Uri uri) {
+        if (uri == null) {
+            return "自定义背景";
+        }
+        Cursor cursor = null;
+        try {
+            cursor = getContentResolver().query(uri, null, null, null, null);
+            if (cursor != null && cursor.moveToFirst()) {
+                int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
+                if (index >= 0) {
+                    String name = cursor.getString(index);
+                    if (name != null && name.length() > 0) {
+                        return name;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        } finally {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
+        String text = uri.toString();
+        int slash = text.lastIndexOf('/');
+        return slash >= 0 && slash + 1 < text.length() ? text.substring(slash + 1) : "自定义背景";
     }
 
     private void openBuiltInWidgetPicker() {
@@ -362,6 +446,26 @@ public class DesktopSettingsActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         keepFullscreen();
 
+        if (requestCode == REQ_PICK_BACKGROUND) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                Uri uri = data.getData();
+                try {
+                    final int flags = data.getFlags() & Intent.FLAG_GRANT_READ_URI_PERMISSION;
+                    getContentResolver().takePersistableUriPermission(uri, flags);
+                } catch (Throwable ignored) {
+                }
+
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                        .putString("app_background_uri", uri.toString())
+                        .putString("app_background_label", getDisplayName(uri))
+                        .apply();
+
+                Toast.makeText(this, "已更换APP背景", Toast.LENGTH_SHORT).show();
+                refreshValues();
+            }
+            return;
+        }
+
         if (requestCode == REQ_SELECT_WIDGET_PROVIDER) {
             if (resultCode != RESULT_OK || data == null) {
                 return;
@@ -452,4 +556,13 @@ public class DesktopSettingsActivity extends Activity {
                         | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         );
     }
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (HomeKeyHelper.handle(this, event)) {
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+
 }

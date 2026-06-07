@@ -8,6 +8,7 @@ import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.KeyEvent;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
@@ -21,7 +22,6 @@ public class WeatherSettingsActivity extends Activity {
 
     private EditText cityNameEdit;
     private EditText cityCodeEdit;
-    private EditText amapKeyEdit;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,23 +55,24 @@ public class WeatherSettingsActivity extends Activity {
         ));
 
         TextView tip = new TextView(this);
-        tip.setText("6号卡片使用高德开放平台天气接口。城市编码建议填写高德 adcode，例如萍乡 360300。没有 Key 时天气卡片会显示“请设置天气”。");
+        tip.setText("6号卡片改用中国天气免费页面/接口，不需要高德 Key。城市 ID 填中国天气编号，例如你给的安源天气页面为 101240904。");
         tip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
         tip.setTextColor(Color.rgb(90, 90, 90));
         tip.setGravity(Gravity.CENTER_VERTICAL);
         tip.setSingleLine(false);
         root.addView(tip, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(108)
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(112)
         ));
 
         addLabel(root, "城市显示名称");
-        cityNameEdit = addEdit(root, sp.getString(WeatherProvider.PREF_WEATHER_CITY_NAME, "萍乡"), false);
+        cityNameEdit = addEdit(root, sp.getString(WeatherProvider.PREF_WEATHER_CITY_NAME, WeatherProvider.DEFAULT_CITY_NAME), false);
 
-        addLabel(root, "城市编码 / 高德 adcode");
-        cityCodeEdit = addEdit(root, sp.getString(WeatherProvider.PREF_WEATHER_CITY_CODE, "360300"), false);
-
-        addLabel(root, "高德天气 API Key");
-        amapKeyEdit = addEdit(root, sp.getString(WeatherProvider.PREF_WEATHER_AMAP_KEY, ""), false);
+        addLabel(root, "中国天气城市 ID");
+        String savedCityCode = sp.getString(WeatherProvider.PREF_WEATHER_CITY_CODE, WeatherProvider.DEFAULT_CITY_CODE);
+        if ("360300".equals(savedCityCode) || savedCityCode == null || !savedCityCode.startsWith("101")) {
+            savedCityCode = WeatherProvider.DEFAULT_CITY_CODE;
+        }
+        cityCodeEdit = addEdit(root, savedCityCode, true);
 
         Button save = addButton(root, "保存天气设置");
         save.setOnClickListener(new View.OnClickListener() {
@@ -137,19 +138,17 @@ public class WeatherSettingsActivity extends Activity {
     private void saveSettings() {
         String cityName = cityNameEdit.getText().toString().trim();
         String cityCode = cityCodeEdit.getText().toString().trim();
-        String amapKey = amapKeyEdit.getText().toString().trim();
 
         if (cityName.length() == 0) {
-            cityName = "萍乡";
+            cityName = WeatherProvider.DEFAULT_CITY_NAME;
         }
         if (cityCode.length() == 0) {
-            cityCode = "360300";
+            cityCode = WeatherProvider.DEFAULT_CITY_CODE;
         }
 
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .putString(WeatherProvider.PREF_WEATHER_CITY_NAME, cityName)
                 .putString(WeatherProvider.PREF_WEATHER_CITY_CODE, cityCode)
-                .putString(WeatherProvider.PREF_WEATHER_AMAP_KEY, amapKey)
                 .apply();
 
         Toast.makeText(this, "天气设置已保存", Toast.LENGTH_SHORT).show();
@@ -173,5 +172,13 @@ public class WeatherSettingsActivity extends Activity {
                 value,
                 getResources().getDisplayMetrics()
         );
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (HomeKeyHelper.handle(this, event)) {
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
     }
 }

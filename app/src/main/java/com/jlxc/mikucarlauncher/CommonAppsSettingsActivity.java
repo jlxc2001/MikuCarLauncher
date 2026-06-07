@@ -8,6 +8,7 @@ import android.os.Bundle;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.KeyEvent;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
@@ -168,4 +169,13 @@ public class CommonAppsSettingsActivity extends Activity {
                         | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
         );
     }
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (HomeKeyHelper.handle(this, event)) {
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+
 }

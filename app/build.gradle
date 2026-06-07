@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 32
-        versionName '0.4.1-weather-card'
+        versionCode 34
+        versionName '0.4.3-weather-cn-bg-greeting'
     }
 
     // GitHub 网页上传不会自动删除旧文件。

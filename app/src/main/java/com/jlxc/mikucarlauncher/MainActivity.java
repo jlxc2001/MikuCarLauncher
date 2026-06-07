@@ -259,6 +259,30 @@ public class MainActivity extends Activity {
         );
     }
 
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (intent != null && intent.getBooleanExtra(HomeKeyHelper.EXTRA_GO_HOME, false)) {
+            showHomePage();
+        }
+    }
+
+    public void showHomePage() {
+        if (launcherView != null) {
+            launcherView.showHomePage();
+        }
+        updateCard1WidgetVisibility();
+    }
+
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (HomeKeyHelper.handle(this, event)) {
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         if (launcherView != null && launcherView.handleHardwareKey(keyCode)) {

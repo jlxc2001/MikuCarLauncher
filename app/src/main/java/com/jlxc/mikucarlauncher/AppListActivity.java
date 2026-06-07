@@ -13,6 +13,7 @@ import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
+import android.view.KeyEvent;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.AbsListView;
@@ -306,4 +307,13 @@ public class AppListActivity extends Activity {
         ImageView iconView;
         TextView labelView;
     }
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (HomeKeyHelper.handle(this, event)) {
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+
 }
