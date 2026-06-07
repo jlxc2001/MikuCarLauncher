@@ -215,10 +215,47 @@ public class LauncherCanvasView extends View {
         c.drawRoundRect(bottomMiddleCard, radius, radius, cardPaint);
         c.drawRoundRect(bottomRightCard, radius, radius, cardPaint);
 
+        if (!hasCard1WidgetConfigured()) {
+            drawCard1WidgetSetupButton(c, leftCard);
+        }
+
         if (hardwareFocusVisible && focusArea == 1 && activeIndex == 0) {
             RectF[] cards = new RectF[]{leftCard, rightTopCard, rightBottomCard, bottomLeftCard, bottomMiddleCard, bottomRightCard};
             drawFocusStroke(c, cards[clamp(selectedCardIndex, 0, cards.length - 1)]);
         }
+    }
+
+    private boolean hasCard1WidgetConfigured() {
+        return getContext()
+                .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getInt(MainActivity.PREF_CARD1_WIDGET_ID, -1) >= 0;
+    }
+
+    private RectF getCard1WidgetSetupButtonRect() {
+        return new RectF(292f, 246f, 648f, 318f);
+    }
+
+    private void drawCard1WidgetSetupButton(Canvas c, RectF card) {
+        subTextPaint.setTextAlign(Paint.Align.CENTER);
+        subTextPaint.setTextSize(24f);
+        subTextPaint.setColor(Color.rgb(95, 95, 95));
+        c.drawText("未设置高德地图小组件", (card.left + card.right) / 2f, 208f, subTextPaint);
+
+        RectF btn = getCard1WidgetSetupButtonRect();
+        Paint btnPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        btnPaint.setColor(Color.rgb(235, 243, 255));
+        c.drawRoundRect(btn, 16f, 16f, btnPaint);
+
+        Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
+        stroke.setStyle(Paint.Style.STROKE);
+        stroke.setStrokeWidth(2f);
+        stroke.setColor(Color.rgb(46, 120, 255));
+        c.drawRoundRect(btn, 16f, 16f, stroke);
+
+        subTextPaint.setTextSize(24f);
+        subTextPaint.setColor(Color.rgb(46, 120, 255));
+        c.drawText("设置小组件", (btn.left + btn.right) / 2f, btn.top + 46f, subTextPaint);
+        subTextPaint.setTextAlign(Paint.Align.LEFT);
     }
 
     private void drawAppDrawerPage(Canvas c) {
@@ -494,6 +531,15 @@ public class LauncherCanvasView extends View {
                     if (menuClickListener != null) {
                         menuClickListener.onMenuClick(i, labels[i]);
                     }
+                    return true;
+                }
+            }
+
+            if (activeIndex == 0 && !hasCard1WidgetConfigured()) {
+                RectF setupBtn = getCard1WidgetSetupButtonRect();
+                if (setupBtn.contains(x, y)) {
+                    Intent intent = new Intent(getContext(), DesktopSettingsActivity.class);
+                    getContext().startActivity(intent);
                     return true;
                 }
             }

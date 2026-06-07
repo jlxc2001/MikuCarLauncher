@@ -20,10 +20,10 @@ public class RoundedAppWidgetHostView extends AppWidgetHostView {
         super(context);
 
         // 这里就是给高德小组件四个角做遮罩圆角。
-        // 18dp 和当前白底卡片的圆角视觉接近，后面如果你觉得不够圆/太圆，可以继续调这个数值。
+        // 8dp 接近当前白底卡片的视觉圆角；上一版 18dp 过大。
         cornerRadiusPx = TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP,
-                18f,
+                8f,
                 getResources().getDisplayMetrics()
         );
 
