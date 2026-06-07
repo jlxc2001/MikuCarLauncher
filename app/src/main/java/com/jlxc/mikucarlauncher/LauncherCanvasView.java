@@ -26,14 +26,15 @@ public class LauncherCanvasView extends View {
     private final Paint iconPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint textPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint activeTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint sidebarPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private int activeIndex = 0;
 
     // 侧边栏布局：按用户最新参考图重排。
     // 未选中项只显示图标和文字；选中项才显示背景图。
-    private final float sidebarW = 170f;
+    private final float sidebarW = 176f;
     private final float btnX = 0f;
-    private final float btnW = 132f;
+    private final float btnW = 138f;
     private final float btnH = 58f;
     private final float iconSize = 28f;
     private final float iconX = 22f;
@@ -65,6 +66,9 @@ public class LauncherCanvasView extends View {
         activeTextPaint.setTextSize(24f);
         activeTextPaint.setFakeBoldText(false);
         activeTextPaint.setTextAlign(Paint.Align.LEFT);
+
+        // 左侧按钮列背景：比主背景略深一点的灰色，按用户参考图处理。
+        sidebarPaint.setColor(Color.rgb(233, 236, 242));
     }
 
     @Override
@@ -80,6 +84,8 @@ public class LauncherCanvasView extends View {
 
     private void drawDesign(Canvas c) {
         c.drawBitmap(background, null, new RectF(0, 0, DESIGN_W, DESIGN_H), bitmapPaint);
+        // 左侧功能列底板
+        c.drawRect(0, 0, sidebarW, DESIGN_H, sidebarPaint);
         for (int i = 0; i < labels.length; i++) {
             drawMenuItem(c, i);
         }
