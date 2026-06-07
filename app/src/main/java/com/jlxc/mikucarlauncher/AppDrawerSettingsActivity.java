@@ -12,6 +12,7 @@ import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -33,26 +34,35 @@ public class AppDrawerSettingsActivity extends Activity {
     private void buildUi() {
         SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
 
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(true);
+        scrollView.setBackgroundColor(Color.rgb(238, 241, 246));
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(dp(42), dp(30), dp(42), dp(30));
-        root.setBackgroundColor(Color.rgb(238, 241, 246));
+        root.setPadding(dp(46), dp(34), dp(46), dp(54));
+        scrollView.addView(root, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT
+        ));
 
         TextView title = new TextView(this);
         title.setText("应用抽屉显示设置");
-        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 26);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32);
         title.setTextColor(Color.rgb(20, 20, 20));
         title.setGravity(Gravity.CENTER_VERTICAL);
         root.addView(title, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(60)
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(76)
         ));
 
         TextView hint = new TextView(this);
         hint.setText("默认按平板样式 3×6 排列（3 行 6 列）。这里可以调节图标大小、文字大小，以及应用抽屉网格行列数量。\n建议范围：图标 40~128dp，文字 10~30sp，列数 3~8，行数 1~6。");
-        hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
         hint.setTextColor(Color.rgb(85, 85, 85));
+        hint.setGravity(Gravity.CENTER_VERTICAL);
+        hint.setPadding(0, 0, 0, dp(10));
         root.addView(hint, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(80)
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(118)
         ));
 
         iconSizeEdit = addNumberEdit(root, "图标大小（dp）", String.valueOf(sp.getInt("drawer_icon_size_dp", 72)));
@@ -76,22 +86,34 @@ public class AppDrawerSettingsActivity extends Activity {
             }
         });
 
-        setContentView(root);
+        setContentView(scrollView);
     }
 
-    private EditText addNumberEdit(LinearLayout root, String hint, String value) {
+    private EditText addNumberEdit(LinearLayout root, String label, String value) {
+        TextView labelView = new TextView(this);
+        labelView.setText(label);
+        labelView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
+        labelView.setTextColor(Color.rgb(30, 30, 30));
+        labelView.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams labelLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(38)
+        );
+        labelLp.setMargins(0, dp(12), 0, dp(4));
+        root.addView(labelView, labelLp);
+
         EditText edit = new EditText(this);
-        edit.setHint(hint);
+        edit.setHint("");
         edit.setText(value);
         edit.setSingleLine(true);
         edit.setInputType(InputType.TYPE_CLASS_NUMBER);
-        edit.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
-        edit.setPadding(dp(22), 0, dp(22), 0);
+        edit.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
+        edit.setTextColor(Color.rgb(25, 25, 25));
+        edit.setPadding(dp(28), 0, dp(28), 0);
         edit.setBackgroundColor(Color.WHITE);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(62)
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(82)
         );
-        lp.setMargins(0, dp(12), 0, dp(10));
+        lp.setMargins(0, 0, 0, dp(8));
         root.addView(edit, lp);
         return edit;
     }
@@ -99,12 +121,13 @@ public class AppDrawerSettingsActivity extends Activity {
     private Button addButton(LinearLayout root, String text) {
         Button button = new Button(this);
         button.setText(text);
-        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
         button.setGravity(Gravity.CENTER);
+        button.setAllCaps(false);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(58)
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(82)
         );
-        lp.setMargins(0, dp(10), 0, dp(10));
+        lp.setMargins(0, dp(12), 0, dp(14));
         root.addView(button, lp);
         return button;
     }

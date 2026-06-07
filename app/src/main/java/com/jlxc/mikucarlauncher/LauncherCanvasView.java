@@ -94,6 +94,17 @@ public class LauncherCanvasView extends View {
     private int appDrawerPage = 0;
     private int selectedAppIndex = 0;
 
+    // 选项框只在实体按键操作后出现；用户触摸屏幕后自动隐藏。
+    private boolean appSelectionVisible = false;
+
+    // 应用抽屉左右滑动翻页动画。
+    private boolean appPageAnimating = false;
+    private int appAnimFromPage = 0;
+    private int appAnimToPage = 0;
+    private int appAnimDirection = 0;
+    private long appAnimStartMs = 0L;
+    private static final long APP_PAGE_ANIM_DURATION_MS = 260L;
+
     public LauncherCanvasView(Context context) {
         super(context);
         setFocusable(true);
@@ -226,21 +237,60 @@ public class LauncherCanvasView extends View {
         float gridTop = pageCard.top + 126f;
         float gridRight = pageCard.right - 56f;
         float gridBottom = pageCard.bottom - 46f;
+
+        c.save();
+        c.clipRect(gridLeft, gridTop, gridRight, gridBottom);
+
+        float contentWidth = gridRight - gridLeft;
+        if (appPageAnimating) {
+            float progress = (System.currentTimeMillis() - appAnimStartMs) / (float) APP_PAGE_ANIM_DURATION_MS;
+            if (progress >= 1f) {
+                progress = 1f;
+                appPageAnimating = false;
+            }
+            progress = easeOutCubic(progress);
+
+            // 下一页：旧页向左滑出，新页从右滑入；上一页相反。
+            float fromOffset = -appAnimDirection * contentWidth * progress;
+            float toOffset = appAnimDirection * contentWidth * (1f - progress);
+
+            drawAppPageCells(c, appAnimFromPage, fromOffset, columns, rows, iconSize, textSize, gridLeft, gridTop, gridRight, gridBottom);
+            drawAppPageCells(c, appAnimToPage, toOffset, columns, rows, iconSize, textSize, gridLeft, gridTop, gridRight, gridBottom);
+
+            if (appPageAnimating) {
+                postInvalidateOnAnimation();
+            }
+        } else {
+            drawAppPageCells(c, appDrawerPage, 0f, columns, rows, iconSize, textSize, gridLeft, gridTop, gridRight, gridBottom);
+        }
+
+        c.restore();
+        drawPageIndicator(c, pageCard, pageCount);
+    }
+
+    private void drawAppPageCells(Canvas c, int page, float offsetX, int columns, int rows, int iconSize, int textSize,
+                                  float gridLeft, float gridTop, float gridRight, float gridBottom) {
+        int pageSize = Math.max(1, rows * columns);
+        int pageStart = page * pageSize;
+        int pageEnd = Math.min(cachedApps.size(), pageStart + pageSize);
         float cellW = (gridRight - gridLeft) / columns;
         float cellH = (gridBottom - gridTop) / rows;
 
-        int pageEnd = Math.min(cachedApps.size(), pageStart + pageSize);
         for (int i = pageStart; i < pageEnd; i++) {
             AppEntry app = cachedApps.get(i);
             int pagePos = i - pageStart;
             int row = pagePos / columns;
             int col = pagePos % columns;
-            float cellLeft = gridLeft + col * cellW;
+            float cellLeft = gridLeft + col * cellW + offsetX;
             float cellTop = gridTop + row * cellH;
-            drawAppIconCell(c, app, cellLeft, cellTop, cellW, cellH, iconSize, textSize, i == selectedAppIndex);
+            drawAppIconCell(c, app, cellLeft, cellTop, cellW, cellH, iconSize, textSize, appSelectionVisible && i == selectedAppIndex);
         }
+    }
 
-        drawPageIndicator(c, pageCard, pageCount);
+    private float easeOutCubic(float t) {
+        t = clampFloat(t, 0f, 1f);
+        float p = 1f - t;
+        return 1f - p * p * p;
     }
 
     private void drawAppIconCell(Canvas c, AppEntry app, float cellLeft, float cellTop, float cellW, float cellH, int iconSizeDp, int textSizeSp, boolean selected) {
@@ -327,6 +377,7 @@ public class LauncherCanvasView extends View {
         drawMineRow(c, rowLeft, rowTop + (rowH + rowGap), rowRight, rowTop + (rowH + rowGap) + rowH, "汽车品牌", brand, "点击修改");
         drawMineRow(c, rowLeft, rowTop + 2f * (rowH + rowGap), rowRight, rowTop + 2f * (rowH + rowGap) + rowH, "签名", signature, "点击修改");
         drawMineRow(c, rowLeft, rowTop + 3f * (rowH + rowGap), rowRight, rowTop + 3f * (rowH + rowGap) + rowH, "车机桌面设置", "默认导航/音乐、应用抽屉、隐藏应用", "进入");
+        drawMineRow(c, rowLeft, rowTop + 4f * (rowH + rowGap), rowRight, rowTop + 4f * (rowH + rowGap) + rowH, "关于软件", "作者、主页与项目说明", "查看");
     }
 
     private void drawMineRow(Canvas c, float left, float top, float right, float bottom, String title, String value, String action) {
@@ -392,6 +443,10 @@ public class LauncherCanvasView extends View {
             downDesignX = x;
             downDesignY = y;
             downTimeMs = System.currentTimeMillis();
+            if (activeIndex == 5 && appSelectionVisible) {
+                appSelectionVisible = false;
+                invalidate();
+            }
             return true;
         }
 
@@ -401,6 +456,7 @@ public class LauncherCanvasView extends View {
                 float by = startY + i * (btnH + gap);
                 if (x >= 0 && x <= sidebarW && y >= by - gap / 2f && y <= by + btnH + gap / 2f) {
                     activeIndex = i;
+                    appSelectionVisible = false;
                     if (activeIndex == 5) {
                         clampAppDrawerSelection();
                     }
@@ -484,7 +540,7 @@ public class LauncherCanvasView extends View {
         }
 
         int index = -1;
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 5; i++) {
             float top = rowTop + i * (rowH + rowGap);
             if (y >= top && y <= top + rowH) {
                 index = i;
@@ -501,7 +557,27 @@ public class LauncherCanvasView extends View {
         } else if (index == 3) {
             Intent intent = new Intent(getContext(), DesktopSettingsActivity.class);
             getContext().startActivity(intent);
+        } else if (index == 4) {
+            showAboutDialog();
         }
+    }
+
+    private void showAboutDialog() {
+        String message =
+                "MikuCarLauncher / A4L 车机桌面\n\n" +
+                "作者：江灵夏草\n\n" +
+                "B站主页：\nhttps://space.bilibili.com/130914376\n\n" +
+                "抖音：JLXC2001\n" +
+                "X（原推特）：jlxc2001\n\n" +
+                "软件介绍：\n" +
+                "这是一款面向第三方安卓车机的自定义车机桌面。当前项目以奥迪 A4L 风格 UI 为基础，整合导航、音乐、车辆界面、360 全景、应用抽屉和车主个性化信息。后续会继续接入车辆实时数据、HUD、战斗模式等功能。";
+
+        AlertDialog dialog = new AlertDialog.Builder(getContext())
+                .setTitle("关于软件")
+                .setMessage(message)
+                .setPositiveButton("确定", null)
+                .create();
+        dialog.show();
     }
 
     private void showEditDialog(final String title, final String key, final String defaultValue) {
@@ -543,6 +619,7 @@ public class LauncherCanvasView extends View {
         int pageSize = Math.max(1, rows * columns);
 
         clampAppDrawerSelection();
+        appSelectionVisible = true;
 
         if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
             if (selectedAppIndex % columns == 0) {
@@ -631,9 +708,20 @@ public class LauncherCanvasView extends View {
         }
 
         int nextPage = clamp(appDrawerPage + delta, 0, pageCount - 1);
+        if (nextPage == appDrawerPage) {
+            invalidate();
+            return;
+        }
+
+        appAnimFromPage = appDrawerPage;
+        appAnimToPage = nextPage;
+        appAnimDirection = nextPage > appDrawerPage ? 1 : -1;
+        appAnimStartMs = System.currentTimeMillis();
+        appPageAnimating = true;
+
         appDrawerPage = nextPage;
         selectedAppIndex = Math.min(cachedApps.size() - 1, appDrawerPage * pageSize);
-        invalidate();
+        postInvalidateOnAnimation();
     }
 
     private void clampAppDrawerSelection() {
@@ -746,6 +834,10 @@ public class LauncherCanvasView extends View {
     }
 
     private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private float clampFloat(float value, float min, float max) {
         return Math.max(min, Math.min(max, value));
     }
 

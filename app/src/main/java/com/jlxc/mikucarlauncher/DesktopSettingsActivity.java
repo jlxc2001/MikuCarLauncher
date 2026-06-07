@@ -11,6 +11,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 
 public class DesktopSettingsActivity extends Activity {
@@ -35,18 +36,25 @@ public class DesktopSettingsActivity extends Activity {
     }
 
     private void buildUi() {
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.setFillViewport(true);
+        scrollView.setBackgroundColor(Color.rgb(238, 241, 246));
+
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(42, 30, 42, 30);
-        root.setBackgroundColor(Color.rgb(238, 241, 246));
+        root.setPadding(dp(46), dp(34), dp(46), dp(46));
+        scrollView.addView(root, new ScrollView.LayoutParams(
+                ScrollView.LayoutParams.MATCH_PARENT,
+                ScrollView.LayoutParams.WRAP_CONTENT
+        ));
 
         TextView title = new TextView(this);
         title.setText("车机桌面设置");
-        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 26);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32);
         title.setTextColor(Color.rgb(20, 20, 20));
         title.setGravity(Gravity.CENTER_VERTICAL);
         root.addView(title, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 60
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(76)
         ));
 
         navValue = addValue(root, "默认导航软件：");
@@ -92,22 +100,23 @@ public class DesktopSettingsActivity extends Activity {
             }
         });
 
-        setContentView(root);
+        setContentView(scrollView);
         refreshValues();
     }
 
     private TextView addValue(LinearLayout root, String label) {
         TextView tv = new TextView(this);
         tv.setText(label);
-        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
         tv.setTextColor(Color.rgb(28, 28, 28));
         tv.setGravity(Gravity.CENTER_VERTICAL);
-        tv.setPadding(22, 0, 22, 0);
+        tv.setPadding(dp(26), 0, dp(26), 0);
+        tv.setSingleLine(false);
         tv.setBackgroundColor(Color.WHITE);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 54
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(76)
         );
-        lp.setMargins(0, 12, 0, 8);
+        lp.setMargins(0, dp(14), 0, dp(10));
         root.addView(tv, lp);
         return tv;
     }
@@ -115,11 +124,13 @@ public class DesktopSettingsActivity extends Activity {
     private Button addButton(LinearLayout root, String text) {
         Button button = new Button(this);
         button.setText(text);
-        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
+        button.setGravity(Gravity.CENTER);
+        button.setAllCaps(false);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 58
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(78)
         );
-        lp.setMargins(0, 8, 0, 8);
+        lp.setMargins(0, dp(10), 0, dp(14));
         root.addView(button, lp);
         return button;
     }
@@ -145,6 +156,11 @@ public class DesktopSettingsActivity extends Activity {
         Intent intent = new Intent(this, AppPickerActivity.class);
         intent.putExtra("target", target);
         startActivity(intent);
+    }
+
+    private int dp(int value) {
+        return Math.round(TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, value, getResources().getDisplayMetrics()));
     }
 
     private void keepFullscreen() {

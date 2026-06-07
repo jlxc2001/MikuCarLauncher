@@ -34,16 +34,16 @@ public class AppPickerActivity extends Activity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(36, 26, 36, 26);
+        root.setPadding(46, 34, 46, 46);
         root.setBackgroundColor(Color.rgb(238, 241, 246));
 
         TextView title = new TextView(this);
         title.setText("选择" + ("music".equals(target) ? "默认音乐软件" : "默认导航软件"));
-        title.setTextSize(26);
+        title.setTextSize(32);
         title.setTextColor(Color.rgb(20, 20, 20));
         title.setGravity(Gravity.CENTER_VERTICAL);
         root.addView(title, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 58
+                LinearLayout.LayoutParams.MATCH_PARENT, 76
         ));
 
         ScrollView scrollView = new ScrollView(this);
@@ -67,10 +67,10 @@ public class AppPickerActivity extends Activity {
 
             TextView row = new TextView(this);
             row.setText(label + "\n" + pkg);
-            row.setTextSize(20);
+            row.setTextSize(24);
             row.setTextColor(Color.rgb(28, 28, 28));
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(28, 12, 28, 12);
+            row.setPadding(32, 18, 32, 18);
             row.setBackgroundColor(Color.WHITE);
             row.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -89,9 +89,9 @@ public class AppPickerActivity extends Activity {
             });
 
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, 74
+                    LinearLayout.LayoutParams.MATCH_PARENT, 96
             );
-            lp.setMargins(0, 0, 0, 10);
+            lp.setMargins(0, 0, 0, 14);
             list.addView(row, lp);
         }
 

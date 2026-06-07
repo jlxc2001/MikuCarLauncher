@@ -37,25 +37,25 @@ public class HiddenAppsActivity extends Activity {
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(36, 26, 36, 26);
+        root.setPadding(46, 34, 46, 46);
         root.setBackgroundColor(Color.rgb(238, 241, 246));
 
         TextView title = new TextView(this);
         title.setText("隐藏应用抽屉里的软件");
-        title.setTextSize(26);
+        title.setTextSize(32);
         title.setTextColor(Color.rgb(20, 20, 20));
         title.setGravity(Gravity.CENTER_VERTICAL);
         root.addView(title, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 58
+                LinearLayout.LayoutParams.MATCH_PARENT, 76
         ));
 
         TextView hint = new TextView(this);
         hint.setText("点击应用即可切换显示/隐藏。隐藏后不会出现在“应用”抽屉里。");
-        hint.setTextSize(16);
+        hint.setTextSize(20);
         hint.setTextColor(Color.rgb(80, 80, 80));
         hint.setGravity(Gravity.CENTER_VERTICAL);
         root.addView(hint, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 42
+                LinearLayout.LayoutParams.MATCH_PARENT, 56
         ));
 
         ScrollView scrollView = new ScrollView(this);
@@ -79,10 +79,10 @@ public class HiddenAppsActivity extends Activity {
 
             final TextView row = new TextView(this);
             row.setText(makeRowText(label, pkg, hidden.contains(pkg)));
-            row.setTextSize(20);
+            row.setTextSize(24);
             row.setTextColor(Color.rgb(28, 28, 28));
             row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(28, 12, 28, 12);
+            row.setPadding(32, 18, 32, 18);
             row.setBackgroundColor(hidden.contains(pkg) ? Color.rgb(225, 231, 241) : Color.WHITE);
             row.setOnClickListener(new View.OnClickListener() {
                 @Override
@@ -99,9 +99,9 @@ public class HiddenAppsActivity extends Activity {
             });
 
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, 74
+                    LinearLayout.LayoutParams.MATCH_PARENT, 96
             );
-            lp.setMargins(0, 0, 0, 10);
+            lp.setMargins(0, 0, 0, 14);
             list.addView(row, lp);
         }
 
