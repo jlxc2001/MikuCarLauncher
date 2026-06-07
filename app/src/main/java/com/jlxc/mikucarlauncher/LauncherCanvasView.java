@@ -73,6 +73,8 @@ public class LauncherCanvasView extends View {
     private final Bitmap btSignalIcon;
     private final Bitmap btStatusGroupIcon;
     private final Bitmap phonePreviewIcon;
+    private final Bitmap carTopViewBitmap;
+    private final VehicleDataProvider vehicleDataProvider;
     private final String[] labels = {"首页", "导航", "音乐", "车辆", "全景", "应用", "我的"};
 
     private final Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
@@ -171,6 +173,8 @@ public class LauncherCanvasView extends View {
         btSignalIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_bt_signal_hd);
         btStatusGroupIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_bt_status_group_hd);
         phonePreviewIcon = BitmapFactory.decodeResource(getResources(), R.drawable.ic_phone_hd);
+        carTopViewBitmap = BitmapFactory.decodeResource(getResources(), R.drawable.car_top_view_a4l);
+        vehicleDataProvider = new VehicleDataProvider(context);
 
         // 启动后后台预热应用抽屉缓存，避免第一次按“应用”才开始加载。
         post(new Runnable() {
@@ -179,6 +183,8 @@ public class LauncherCanvasView extends View {
                 loadAppsIfNeeded();
             }
         });
+
+        vehicleDataProvider.start();
 
         textPaint.setColor(Color.rgb(20, 20, 20));
         textPaint.setTextSize(24f);
@@ -274,6 +280,7 @@ public class LauncherCanvasView extends View {
         drawMusicPlayerCard(c, rightTopCard);
         drawBluetoothCard(c, rightBottomCard);
         drawCommonAppsCard(c, bottomLeftCard);
+        drawVehicleStatusCard(c, bottomMiddleCard);
 
         if (hardwareFocusVisible && focusArea == 1 && activeIndex == 0) {
             RectF[] cards = new RectF[]{leftCard, rightTopCard, rightBottomCard, bottomLeftCard, bottomMiddleCard, bottomRightCard};
@@ -686,6 +693,155 @@ public class LauncherCanvasView extends View {
             path.close();
             c.drawPath(path, p);
         }
+    }
+
+    private void drawVehicleStatusCard(Canvas c, RectF card) {
+        VehicleDataProvider.Snapshot data = vehicleDataProvider == null
+                ? VehicleDataProvider.Snapshot.empty()
+                : vehicleDataProvider.getSnapshot();
+
+        titlePaint.setTextAlign(Paint.Align.LEFT);
+        titlePaint.setTextSize(19f);
+        titlePaint.setFakeBoldText(true);
+        titlePaint.setColor(Color.rgb(50, 50, 50));
+        c.drawText("续航里程", card.left + 34f, card.top + 33f, titlePaint);
+
+        titlePaint.setFakeBoldText(true);
+        titlePaint.setTextSize(32f);
+        titlePaint.setColor(Color.rgb(18, 18, 18));
+        String rangeText = (data.valid && data.rangeKm >= 0) ? String.valueOf(data.rangeKm) : "--";
+        c.drawText(rangeText, card.left + 34f, card.top + 76f, titlePaint);
+
+        titlePaint.setFakeBoldText(false);
+        titlePaint.setTextSize(18f);
+        titlePaint.setColor(Color.rgb(40, 40, 40));
+        float rangeTextWidth = titlePaint.measureText(rangeText);
+        c.drawText("km", card.left + 34f + rangeTextWidth + 8f, card.top + 76f, titlePaint);
+
+        subTextPaint.setTextAlign(Paint.Align.LEFT);
+        subTextPaint.setTextSize(18f);
+        subTextPaint.setColor(Color.rgb(55, 55, 55));
+        String status;
+        if (!data.valid || data.rangeKm < 0) {
+            status = "读取中";
+        } else if (data.rangeKm >= 100) {
+            status = "续航充足";
+        } else if (data.rangeKm >= 50) {
+            status = "建议加油";
+        } else {
+            status = "燃油不足";
+        }
+        c.drawText(status, card.left + 34f, card.top + 106f, subTextPaint);
+
+        RectF carRect = getCard5CarRect(card);
+        drawBitmapFitCenter(c, carTopViewBitmap, carRect);
+        drawVehicleDoorFeedback(c, carRect, data);
+
+        // 车辆数据低频刷新，绘制层只做轻量重绘。
+        postInvalidateDelayed(900L);
+    }
+
+    private RectF getCard5CarRect(RectF card) {
+        return new RectF(card.left + 286f, card.top + 12f, card.right - 60f, card.bottom - 12f);
+    }
+
+    private void drawVehicleDoorFeedback(Canvas c, RectF carRect, VehicleDataProvider.Snapshot data) {
+        if (data == null || !data.valid) {
+            return;
+        }
+
+        boolean anyOpen = data.frontLeftDoorOpen
+                || data.frontRightDoorOpen
+                || data.rearLeftDoorOpen
+                || data.rearRightDoorOpen
+                || data.trunkOpen
+                || data.hoodOpen;
+
+        if (!anyOpen) {
+            return;
+        }
+
+        float pulse = (float) ((Math.sin(System.currentTimeMillis() / 180.0) + 1.0) * 0.5);
+        int alpha = 120 + (int) (70f * pulse);
+
+        Paint doorFill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        doorFill.setStyle(Paint.Style.FILL);
+        doorFill.setColor(Color.argb(alpha, 46, 120, 255));
+
+        Paint doorStroke = new Paint(Paint.ANTI_ALIAS_FLAG);
+        doorStroke.setStyle(Paint.Style.STROKE);
+        doorStroke.setStrokeWidth(2.2f);
+        doorStroke.setColor(Color.argb(220, 46, 120, 255));
+
+        // 这里先用单张俯视图做轻量“车门打开反馈”：开门时在对应位置弹出蓝色门板。
+        // 等你后面提供独立门素材后，可以替换成真正的叠加动画。
+        if (data.frontLeftDoorOpen) {
+            drawDoorPanel(c, doorFill, doorStroke,
+                    carRect.left + carRect.width() * 0.30f,
+                    carRect.top + carRect.height() * 0.34f,
+                    carRect.width() * 0.17f,
+                    -1);
+        }
+        if (data.rearLeftDoorOpen) {
+            drawDoorPanel(c, doorFill, doorStroke,
+                    carRect.left + carRect.width() * 0.53f,
+                    carRect.top + carRect.height() * 0.34f,
+                    carRect.width() * 0.17f,
+                    -1);
+        }
+        if (data.frontRightDoorOpen) {
+            drawDoorPanel(c, doorFill, doorStroke,
+                    carRect.left + carRect.width() * 0.30f,
+                    carRect.top + carRect.height() * 0.66f,
+                    carRect.width() * 0.17f,
+                    1);
+        }
+        if (data.rearRightDoorOpen) {
+            drawDoorPanel(c, doorFill, doorStroke,
+                    carRect.left + carRect.width() * 0.53f,
+                    carRect.top + carRect.height() * 0.66f,
+                    carRect.width() * 0.17f,
+                    1);
+        }
+
+        if (data.hoodOpen) {
+            RectF hood = new RectF(
+                    carRect.left + carRect.width() * 0.06f,
+                    carRect.top + carRect.height() * 0.35f,
+                    carRect.left + carRect.width() * 0.22f,
+                    carRect.top + carRect.height() * 0.65f
+            );
+            c.drawRoundRect(hood, 5f, 5f, doorFill);
+            c.drawRoundRect(hood, 5f, 5f, doorStroke);
+        }
+
+        if (data.trunkOpen) {
+            RectF trunk = new RectF(
+                    carRect.left + carRect.width() * 0.78f,
+                    carRect.top + carRect.height() * 0.35f,
+                    carRect.left + carRect.width() * 0.94f,
+                    carRect.top + carRect.height() * 0.65f
+            );
+            c.drawRoundRect(trunk, 5f, 5f, doorFill);
+            c.drawRoundRect(trunk, 5f, 5f, doorStroke);
+        }
+
+        postInvalidateDelayed(180L);
+    }
+
+    private void drawDoorPanel(Canvas c, Paint fill, Paint stroke, float hingeX, float hingeY, float doorLength, int side) {
+        float doorHeight = 16f;
+        float openOffset = side < 0 ? -24f : 24f;
+
+        Path path = new Path();
+        path.moveTo(hingeX, hingeY);
+        path.lineTo(hingeX + doorLength, hingeY + openOffset);
+        path.lineTo(hingeX + doorLength, hingeY + openOffset + side * doorHeight);
+        path.lineTo(hingeX, hingeY + side * doorHeight);
+        path.close();
+
+        c.drawPath(path, fill);
+        c.drawPath(path, stroke);
     }
 
     private void drawCommonAppsCard(Canvas c, RectF card) {
@@ -1543,6 +1699,22 @@ public class LauncherCanvasView extends View {
                 .setNegativeButton("取消", null)
                 .create();
         dialog.show();
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        if (vehicleDataProvider != null) {
+            vehicleDataProvider.start();
+        }
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        if (vehicleDataProvider != null) {
+            vehicleDataProvider.stop();
+        }
+        super.onDetachedFromWindow();
     }
 
     public boolean handleHardwareKey(int keyCode) {

@@ -183,3 +183,14 @@ A4L 车机桌面项目。
 - 重新绘制上一首/下一首图标，竖条和三角形分离，视觉更干净。
 - 3号卡片手机图标整体向左移动 20px，避免靠近右上角箭头。
 - 不修改首页卡片位置、背景、左侧按钮列、素材文件。
+
+
+## v38
+- 5号卡片加入汽车状态模块。
+- 续航里程读取 MainApp CarInfoService 的 requestCarBaseInfo() → baseInfo[13]。
+- 不直接 import com.ts.can.carinfo.ICarInfoService，改用 Binder transaction 动态探测 int[82]，避免 GitHub Actions 编译失败。
+- 车辆数据低频 1500ms 轮询，避免高频轮询导致 MainApp 崩溃。
+- 5号卡片中间加入用户提供的 A4L 俯视图素材。
+- 根据 baseInfo[61~66] 尝试做四门、后备箱、引擎盖打开反馈动画。
+- 忽略参考图右侧剩余电量显示，不绘制电池百分比。
+- 不修改已确认的首页卡片布局、左侧按钮列和现有素材文件。

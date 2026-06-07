@@ -9,7 +9,7 @@ android {
         minSdk 23
         targetSdk 28
         versionCode 29
-        versionName '0.3.8-fix-next-icon-phone-left'
+        versionName '0.3.8-card5-vehicle-status'
     }
 
     // GitHub 网页上传不会自动删除旧文件。
