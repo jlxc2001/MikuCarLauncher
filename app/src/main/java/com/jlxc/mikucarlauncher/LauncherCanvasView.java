@@ -13,6 +13,16 @@ import android.view.MotionEvent;
 import android.view.View;
 
 public class LauncherCanvasView extends View {
+    public interface OnMenuClickListener {
+        void onMenuClick(int index, String label);
+    }
+
+    private OnMenuClickListener menuClickListener;
+
+    public void setOnMenuClickListener(OnMenuClickListener listener) {
+        this.menuClickListener = listener;
+    }
+
     // 固定 32:9 车机画布。背景图保持用户指定版本，不做裁切替换。
     private static final float DESIGN_W = 2560f;
     private static final float DESIGN_H = 720f;
@@ -162,6 +172,9 @@ public class LauncherCanvasView extends View {
                 if (x >= 0 && x <= sidebarW && y >= by && y <= by + btnH) {
                     activeIndex = i;
                     invalidate();
+                    if (menuClickListener != null) {
+                        menuClickListener.onMenuClick(i, labels[i]);
+                    }
                     return true;
                 }
             }
