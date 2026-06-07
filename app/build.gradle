@@ -12,6 +12,17 @@ android {
         versionName '0.1.0-sidebar-ui'
     }
 
+    // GitHub 网页上传不会自动删除旧文件。
+    // 如果仓库里残留旧版 a4ldashboard 代码，会因为缺少 ICarInfoService 编译失败。
+    // 这里仅排除旧代码目录，不删除任何素材，不改变当前 UI。
+    sourceSets {
+        main {
+            java {
+                exclude 'com/jlxc/a4ldashboard/**'
+            }
+        }
+    }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
