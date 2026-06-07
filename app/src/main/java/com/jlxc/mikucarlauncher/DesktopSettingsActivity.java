@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
@@ -99,6 +100,14 @@ public class DesktopSettingsActivity extends Activity {
             @Override
             public void onClick(View view) {
                 openPicker("music");
+            }
+        });
+
+        Button musicPermission = addButton(root, "开启音乐信息读取权限");
+        musicPermission.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                openNotificationListenerSettings();
             }
         });
 
@@ -369,6 +378,15 @@ public class DesktopSettingsActivity extends Activity {
         }
 
         super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private void openNotificationListenerSettings() {
+        try {
+            Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
+            startActivity(intent);
+        } catch (Throwable t) {
+            Toast.makeText(this, "无法打开通知读取权限设置", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void openPicker(String target) {

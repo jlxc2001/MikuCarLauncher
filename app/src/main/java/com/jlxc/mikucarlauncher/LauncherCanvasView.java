@@ -3,6 +3,13 @@ package com.jlxc.mikucarlauncher;
 import android.app.AlertDialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.ComponentName;
+import android.graphics.Typeface;
+import android.media.MediaMetadata;
+import android.media.session.MediaController;
+import android.media.session.MediaSessionManager;
+import android.media.session.PlaybackState;
+import android.provider.Settings;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -69,6 +76,7 @@ public class LauncherCanvasView extends View {
     private final Paint smallTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint rowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint dividerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint musicButtonPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     private int activeIndex = 0;
 
@@ -165,6 +173,11 @@ public class LauncherCanvasView extends View {
         rowPaint.setColor(Color.rgb(247, 248, 251));
         dividerPaint.setColor(Color.rgb(232, 235, 241));
         dividerPaint.setStrokeWidth(2f);
+
+        musicButtonPaint.setColor(Color.rgb(10, 10, 10));
+        musicButtonPaint.setTextAlign(Paint.Align.CENTER);
+        musicButtonPaint.setTextSize(28f);
+        musicButtonPaint.setTypeface(Typeface.DEFAULT_BOLD);
     }
 
     @Override
@@ -219,6 +232,8 @@ public class LauncherCanvasView extends View {
             drawCard1WidgetSetupButton(c, leftCard);
         }
 
+        drawMusicPlayerCard(c, rightTopCard);
+
         if (hardwareFocusVisible && focusArea == 1 && activeIndex == 0) {
             RectF[] cards = new RectF[]{leftCard, rightTopCard, rightBottomCard, bottomLeftCard, bottomMiddleCard, bottomRightCard};
             drawFocusStroke(c, cards[clamp(selectedCardIndex, 0, cards.length - 1)]);
@@ -256,6 +271,353 @@ public class LauncherCanvasView extends View {
         subTextPaint.setColor(Color.rgb(46, 120, 255));
         c.drawText("设置小组件", (btn.left + btn.right) / 2f, btn.top + 46f, subTextPaint);
         subTextPaint.setTextAlign(Paint.Align.LEFT);
+    }
+
+    private void drawMusicPlayerCard(Canvas c, RectF card) {
+        MusicInfo musicInfo = getCurrentMusicInfo();
+
+        titlePaint.setTextAlign(Paint.Align.LEFT);
+        titlePaint.setTextSize(22f);
+        titlePaint.setFakeBoldText(true);
+        titlePaint.setColor(Color.rgb(18, 18, 18));
+        c.drawText("音乐", card.left + 28f, card.top + 42f, titlePaint);
+
+        titlePaint.setTextSize(28f);
+        titlePaint.setFakeBoldText(false);
+        titlePaint.setTextAlign(Paint.Align.RIGHT);
+        c.drawText("›", card.right - 28f, card.top + 44f, titlePaint);
+        titlePaint.setTextAlign(Paint.Align.LEFT);
+
+        boolean hasPermission = isNotificationListenerEnabled();
+        if (!hasPermission) {
+            subTextPaint.setTextAlign(Paint.Align.LEFT);
+            subTextPaint.setTextSize(22f);
+            subTextPaint.setColor(Color.rgb(35, 35, 35));
+            c.drawText("未获取到播放信息", card.left + 28f, card.top + 92f, subTextPaint);
+
+            subTextPaint.setTextSize(18f);
+            subTextPaint.setColor(Color.rgb(95, 95, 95));
+            c.drawText("需要开启通知读取权限", card.left + 28f, card.top + 124f, subTextPaint);
+
+            RectF authBtn = getMusicPermissionButtonRect();
+            Paint authPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            authPaint.setColor(Color.rgb(235, 243, 255));
+            c.drawRoundRect(authBtn, 14f, 14f, authPaint);
+
+            Paint authStroke = new Paint(Paint.ANTI_ALIAS_FLAG);
+            authStroke.setStyle(Paint.Style.STROKE);
+            authStroke.setStrokeWidth(2f);
+            authStroke.setColor(Color.rgb(46, 120, 255));
+            c.drawRoundRect(authBtn, 14f, 14f, authStroke);
+
+            subTextPaint.setTextAlign(Paint.Align.CENTER);
+            subTextPaint.setTextSize(20f);
+            subTextPaint.setColor(Color.rgb(46, 120, 255));
+            c.drawText("开启音乐信息权限", (authBtn.left + authBtn.right) / 2f, authBtn.top + 38f, subTextPaint);
+            subTextPaint.setTextAlign(Paint.Align.LEFT);
+            return;
+        }
+
+        String title = musicInfo.title == null || musicInfo.title.length() == 0 ? "未获取到播放信息" : musicInfo.title;
+        String artist = musicInfo.artist == null || musicInfo.artist.length() == 0 ? "请播放音乐" : musicInfo.artist;
+
+        subTextPaint.setTextAlign(Paint.Align.LEFT);
+        subTextPaint.setTextSize(23f);
+        subTextPaint.setFakeBoldText(true);
+        subTextPaint.setColor(Color.rgb(20, 20, 20));
+        drawTextEllipsize(c, title, card.left + 28f, card.top + 88f, subTextPaint, card.width() - 70f);
+
+        subTextPaint.setFakeBoldText(false);
+        subTextPaint.setTextSize(19f);
+        subTextPaint.setColor(Color.rgb(60, 60, 60));
+        drawTextEllipsize(c, artist, card.left + 28f, card.top + 120f, subTextPaint, card.width() - 70f);
+
+        RectF cover = getMusicCoverRect();
+        if (musicInfo.cover != null) {
+            c.drawBitmap(musicInfo.cover, null, cover, bitmapPaint);
+        } else {
+            Paint coverPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+            coverPaint.setColor(Color.rgb(226, 232, 239));
+            c.drawRoundRect(cover, 10f, 10f, coverPaint);
+            smallTextPaint.setTextAlign(Paint.Align.CENTER);
+            smallTextPaint.setTextSize(16f);
+            smallTextPaint.setColor(Color.rgb(120, 120, 120));
+            c.drawText("封面", (cover.left + cover.right) / 2f, (cover.top + cover.bottom) / 2f + 6f, smallTextPaint);
+        }
+
+        drawMusicControls(c, card, musicInfo.playing);
+
+        // 首页常驻时每秒刷新一次播放信息。
+        postInvalidateDelayed(1000L);
+    }
+
+    private RectF getMusicCoverRect() {
+        return new RectF(776f, 166f, 878f, 268f);
+    }
+
+    private RectF getMusicPermissionButtonRect() {
+        return new RectF(776f, 154f, 1058f, 210f);
+    }
+
+    private RectF getMusicPrevButtonRect() {
+        return new RectF(770f, 292f, 826f, 346f);
+    }
+
+    private RectF getMusicPlayButtonRect() {
+        return new RectF(916f, 292f, 972f, 346f);
+    }
+
+    private RectF getMusicNextButtonRect() {
+        return new RectF(1062f, 292f, 1118f, 346f);
+    }
+
+    private RectF getMusicOpenButtonRect() {
+        return new RectF(1082f, 46f, 1138f, 92f);
+    }
+
+    private void drawMusicControls(Canvas c, RectF card, boolean playing) {
+        musicButtonPaint.setColor(Color.rgb(10, 10, 10));
+        musicButtonPaint.setTextSize(28f);
+        musicButtonPaint.setTypeface(Typeface.DEFAULT_BOLD);
+
+        RectF prev = getMusicPrevButtonRect();
+        RectF play = getMusicPlayButtonRect();
+        RectF next = getMusicNextButtonRect();
+
+        drawPrevIcon(c, prev);
+        if (playing) {
+            drawPauseIcon(c, play);
+        } else {
+            drawPlayIcon(c, play);
+        }
+        drawNextIcon(c, next);
+    }
+
+    private void drawPrevIcon(Canvas c, RectF r) {
+        Paint p = musicButtonPaint;
+        float cy = (r.top + r.bottom) / 2f;
+        p.setStrokeWidth(5f);
+        c.drawLine(r.left + 10f, cy - 13f, r.left + 10f, cy + 13f, p);
+
+        PathWrapper.drawTriangle(c, p,
+                r.left + 38f, cy - 16f,
+                r.left + 14f, cy,
+                r.left + 38f, cy + 16f);
+    }
+
+    private void drawNextIcon(Canvas c, RectF r) {
+        Paint p = musicButtonPaint;
+        float cy = (r.top + r.bottom) / 2f;
+        p.setStrokeWidth(5f);
+        c.drawLine(r.right - 10f, cy - 13f, r.right - 10f, cy + 13f, p);
+
+        PathWrapper.drawTriangle(c, p,
+                r.left + 18f, cy - 16f,
+                r.left + 42f, cy,
+                r.left + 18f, cy + 16f);
+    }
+
+    private void drawPlayIcon(Canvas c, RectF r) {
+        Paint p = musicButtonPaint;
+        float cy = (r.top + r.bottom) / 2f;
+        PathWrapper.drawTriangle(c, p,
+                r.left + 20f, cy - 18f,
+                r.left + 20f, cy + 18f,
+                r.left + 44f, cy);
+    }
+
+    private void drawPauseIcon(Canvas c, RectF r) {
+        Paint p = musicButtonPaint;
+        float cy = (r.top + r.bottom) / 2f;
+        c.drawRoundRect(new RectF(r.left + 18f, cy - 18f, r.left + 26f, cy + 18f), 3f, 3f, p);
+        c.drawRoundRect(new RectF(r.left + 34f, cy - 18f, r.left + 42f, cy + 18f), 3f, 3f, p);
+    }
+
+    private void drawTextEllipsize(Canvas c, String text, float x, float y, Paint paint, float maxWidth) {
+        if (text == null) {
+            text = "";
+        }
+        String result = text;
+        while (paint.measureText(result) > maxWidth && result.length() > 1) {
+            result = result.substring(0, result.length() - 1);
+        }
+        if (!result.equals(text) && result.length() > 1) {
+            result = result.substring(0, Math.max(1, result.length() - 1)) + "…";
+        }
+        c.drawText(result, x, y, paint);
+    }
+
+    private boolean isNotificationListenerEnabled() {
+        try {
+            String enabled = Settings.Secure.getString(
+                    getContext().getContentResolver(),
+                    "enabled_notification_listeners"
+            );
+            return enabled != null && enabled.toLowerCase().contains(getContext().getPackageName().toLowerCase());
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private MusicInfo getCurrentMusicInfo() {
+        MusicInfo info = new MusicInfo();
+        MediaController controller = getMusicController();
+        if (controller == null) {
+            return info;
+        }
+
+        try {
+            PlaybackState state = controller.getPlaybackState();
+            info.playing = state != null && state.getState() == PlaybackState.STATE_PLAYING;
+
+            MediaMetadata metadata = controller.getMetadata();
+            if (metadata != null) {
+                CharSequence title = metadata.getText(MediaMetadata.METADATA_KEY_TITLE);
+                CharSequence artist = metadata.getText(MediaMetadata.METADATA_KEY_ARTIST);
+                if (artist == null || artist.length() == 0) {
+                    artist = metadata.getText(MediaMetadata.METADATA_KEY_ALBUM_ARTIST);
+                }
+
+                info.title = title == null ? "" : title.toString();
+                info.artist = artist == null ? "" : artist.toString();
+                info.cover = metadata.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART);
+                if (info.cover == null) {
+                    info.cover = metadata.getBitmap(MediaMetadata.METADATA_KEY_ART);
+                }
+                if (info.cover == null) {
+                    info.cover = metadata.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON);
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+
+        return info;
+    }
+
+    private MediaController getMusicController() {
+        if (!isNotificationListenerEnabled()) {
+            return null;
+        }
+
+        try {
+            MediaSessionManager manager = (MediaSessionManager) getContext().getSystemService(Context.MEDIA_SESSION_SERVICE);
+            if (manager == null) {
+                return null;
+            }
+
+            ComponentName componentName = new ComponentName(getContext(), MusicNotificationListenerService.class);
+            List<MediaController> controllers = manager.getActiveSessions(componentName);
+            if (controllers == null || controllers.isEmpty()) {
+                return null;
+            }
+
+            MediaController fallback = null;
+            for (MediaController controller : controllers) {
+                if (controller == null) continue;
+                PlaybackState state = controller.getPlaybackState();
+                MediaMetadata metadata = controller.getMetadata();
+
+                if (metadata != null && fallback == null) {
+                    fallback = controller;
+                }
+
+                if (state != null && metadata != null) {
+                    int s = state.getState();
+                    if (s == PlaybackState.STATE_PLAYING || s == PlaybackState.STATE_PAUSED || s == PlaybackState.STATE_BUFFERING) {
+                        return controller;
+                    }
+                }
+            }
+
+            return fallback;
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    private void controlMusic(int action) {
+        MediaController controller = getMusicController();
+        if (controller == null) {
+            Toast.makeText(getContext(), "未获取到音乐控制器，请先开启通知读取权限并播放音乐", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        try {
+            MediaController.TransportControls controls = controller.getTransportControls();
+            if (controls == null) {
+                return;
+            }
+
+            if (action == 0) {
+                controls.skipToPrevious();
+            } else if (action == 1) {
+                PlaybackState state = controller.getPlaybackState();
+                boolean playing = state != null && state.getState() == PlaybackState.STATE_PLAYING;
+                if (playing) {
+                    controls.pause();
+                } else {
+                    controls.play();
+                }
+            } else if (action == 2) {
+                controls.skipToNext();
+            }
+            invalidate();
+        } catch (Throwable t) {
+            Toast.makeText(getContext(), "音乐控制失败", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void openNotificationListenerSettings() {
+        try {
+            Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+        } catch (Throwable t) {
+            Toast.makeText(getContext(), "无法打开通知读取权限设置", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void openDefaultMusicApp() {
+        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        String pkg = sp.getString("music_package", "");
+        if (pkg != null && pkg.length() > 0) {
+            try {
+                Intent intent = getContext().getPackageManager().getLaunchIntentForPackage(pkg);
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    getContext().startActivity(intent);
+                    return;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+
+        try {
+            Intent intent = new Intent();
+            intent.setComponent(new ComponentName("com.ts.MainUI", "com.ts.bt.BtMusicActivity"));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+        } catch (Throwable t) {
+            Toast.makeText(getContext(), "无法打开音乐软件", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private static class MusicInfo {
+        String title = "";
+        String artist = "";
+        Bitmap cover;
+        boolean playing = false;
+    }
+
+    private static class PathWrapper {
+        static void drawTriangle(Canvas c, Paint p, float x1, float y1, float x2, float y2, float x3, float y3) {
+            android.graphics.Path path = new android.graphics.Path();
+            path.moveTo(x1, y1);
+            path.lineTo(x2, y2);
+            path.lineTo(x3, y3);
+            path.close();
+            c.drawPath(path, p);
+        }
     }
 
     private void drawAppDrawerPage(Canvas c) {
@@ -544,6 +906,35 @@ public class LauncherCanvasView extends View {
                 }
             }
 
+            if (activeIndex == 0) {
+                RectF card2 = new RectF(748f, 35.5f, 1140f, 350.5f);
+                if (card2.contains(x, y)) {
+                    if (!isNotificationListenerEnabled()) {
+                        if (getMusicPermissionButtonRect().contains(x, y) || card2.contains(x, y)) {
+                            openNotificationListenerSettings();
+                            return true;
+                        }
+                    }
+
+                    if (getMusicPrevButtonRect().contains(x, y)) {
+                        controlMusic(0);
+                        return true;
+                    }
+                    if (getMusicPlayButtonRect().contains(x, y)) {
+                        controlMusic(1);
+                        return true;
+                    }
+                    if (getMusicNextButtonRect().contains(x, y)) {
+                        controlMusic(2);
+                        return true;
+                    }
+                    if (getMusicOpenButtonRect().contains(x, y)) {
+                        openDefaultMusicApp();
+                        return true;
+                    }
+                }
+            }
+
             if (activeIndex == 5) {
                 float dx = x - downDesignX;
                 float dy = y - downDesignY;
@@ -794,7 +1185,15 @@ public class LauncherCanvasView extends View {
         }
 
         if (isEnterKey(keyCode)) {
-            Toast.makeText(getContext(), (selectedCardIndex + 1) + "号卡片", Toast.LENGTH_SHORT).show();
+            if (selectedCardIndex == 1) {
+                if (!isNotificationListenerEnabled()) {
+                    openNotificationListenerSettings();
+                } else {
+                    controlMusic(1);
+                }
+            } else {
+                Toast.makeText(getContext(), (selectedCardIndex + 1) + "号卡片", Toast.LENGTH_SHORT).show();
+            }
             return true;
         }
 
