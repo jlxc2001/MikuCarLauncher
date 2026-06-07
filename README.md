@@ -156,3 +156,15 @@ A4L 车机桌面项目。
 - 3号卡片状态图标改为使用用户提供的“蓝牙+电池+信号”组合图，不再拆分、不重排。
 - 3号卡片手机图标缩小，并向左收一点，避免挨到右上角箭头。
 - 3号卡片保持整卡点击逻辑，任意区域点击都会打开 com.ts.MainUI/com.ts.bt.BtMusicActivity。
+
+
+## v33
+- 修复 CommonAppsSettingsActivity.java 中提示文字字符串跨行导致的 Javac 编译失败。
+- 补齐 LauncherCanvasView 中蓝牙设备列表可能需要的 java.util.Set import。
+- 不修改 UI 布局、不删除素材文件。
+
+
+## v34
+- 直接重写 CommonAppsSettingsActivity.java，彻底去掉普通 Java 字符串中的真实换行。
+- 修复 GitHub Actions 中 unclosed string literal 编译失败。
+- 不修改首页 UI、卡片布局、素材文件。

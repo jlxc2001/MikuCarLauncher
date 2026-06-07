@@ -57,8 +57,7 @@ public class CommonAppsSettingsActivity extends Activity {
         ));
 
         TextView tip = new TextView(this);
-        tip.setText("4号卡片会在首页底部左侧显示常用软件。当前先支持 5 个位置，可分别指定应用。空位不会显示。
-建议把电话、短信、音乐、播客、导航等高频应用放进来。");
+        tip.setText("4号卡片会在首页底部左侧显示常用软件。当前先支持 5 个位置，可分别指定应用。空位不会显示。建议把电话、短信、音乐、播客、导航等高频应用放进来。");
         tip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         tip.setTextColor(Color.rgb(100, 100, 100));
         tip.setLineSpacing(dp(6), 1f);
@@ -70,6 +69,7 @@ public class CommonAppsSettingsActivity extends Activity {
         for (int i = 0; i < SLOT_COUNT; i++) {
             valueViews[i] = addValue(root, "位置" + (i + 1) + "：");
             final int slot = i;
+
             Button choose = addButton(root, "选择位置" + (i + 1) + "的应用");
             choose.setOnClickListener(new View.OnClickListener() {
                 @Override
