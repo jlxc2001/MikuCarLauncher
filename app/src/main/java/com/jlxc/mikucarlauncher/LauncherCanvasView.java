@@ -1,6 +1,8 @@
 package com.jlxc.mikucarlauncher;
 
 import android.app.AlertDialog;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.ComponentName;
@@ -19,6 +21,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.RectF;
@@ -77,6 +80,9 @@ public class LauncherCanvasView extends View {
     private final Paint rowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint dividerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint musicButtonPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    // 2号卡片音乐按钮按下反馈：0=上一曲，1=播放/暂停，2=下一曲。
+    private int pressedMusicButton = -1;
 
     private int activeIndex = 0;
 
@@ -233,6 +239,7 @@ public class LauncherCanvasView extends View {
         }
 
         drawMusicPlayerCard(c, rightTopCard);
+        drawBluetoothCard(c, rightBottomCard);
 
         if (hardwareFocusVisible && focusArea == 1 && activeIndex == 0) {
             RectF[] cards = new RectF[]{leftCard, rightTopCard, rightBottomCard, bottomLeftCard, bottomMiddleCard, bottomRightCard};
@@ -334,7 +341,7 @@ public class LauncherCanvasView extends View {
 
         RectF cover = getMusicCoverRect();
         if (musicInfo.cover != null) {
-            c.drawBitmap(musicInfo.cover, null, cover, bitmapPaint);
+            drawRoundedBitmap(c, musicInfo.cover, cover, 8f);
         } else {
             Paint coverPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             coverPaint.setColor(Color.rgb(226, 232, 239));
@@ -384,13 +391,38 @@ public class LauncherCanvasView extends View {
         RectF play = getMusicPlayButtonRect();
         RectF next = getMusicNextButtonRect();
 
-        drawPrevIcon(c, prev);
+        drawMusicPressedFeedback(c, prev, 0);
+        drawMusicPressedFeedback(c, play, 1);
+        drawMusicPressedFeedback(c, next, 2);
+
+        // 图标本身比上一版缩小约 5px，但触摸热区不变，车机上更容易点。
+        drawPrevIcon(c, shrinkRect(prev, 5f));
         if (playing) {
-            drawPauseIcon(c, play);
+            drawPauseIcon(c, shrinkRect(play, 5f));
         } else {
-            drawPlayIcon(c, play);
+            drawPlayIcon(c, shrinkRect(play, 5f));
         }
-        drawNextIcon(c, next);
+        drawNextIcon(c, shrinkRect(next, 5f));
+    }
+
+    private RectF shrinkRect(RectF r, float px) {
+        return new RectF(r.left + px, r.top + px, r.right - px, r.bottom - px);
+    }
+
+    private void drawMusicPressedFeedback(Canvas c, RectF r, int index) {
+        if (pressedMusicButton != index) {
+            return;
+        }
+
+        Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        fill.setColor(Color.rgb(226, 232, 242));
+        c.drawRoundRect(r, 10f, 10f, fill);
+
+        Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
+        stroke.setStyle(Paint.Style.STROKE);
+        stroke.setStrokeWidth(2f);
+        stroke.setColor(Color.rgb(120, 140, 170));
+        c.drawRoundRect(r, 10f, 10f, stroke);
     }
 
     private void drawPrevIcon(Canvas c, RectF r) {
@@ -617,6 +649,141 @@ public class LauncherCanvasView extends View {
             path.lineTo(x3, y3);
             path.close();
             c.drawPath(path, p);
+        }
+    }
+
+    private void drawBluetoothCard(Canvas c, RectF card) {
+        titlePaint.setTextAlign(Paint.Align.LEFT);
+        titlePaint.setTextSize(22f);
+        titlePaint.setFakeBoldText(true);
+        titlePaint.setColor(Color.rgb(18, 18, 18));
+        c.drawText("蓝牙电话", card.left + 28f, card.top + 38f, titlePaint);
+
+        titlePaint.setTextSize(24f);
+        titlePaint.setFakeBoldText(false);
+        titlePaint.setTextAlign(Paint.Align.RIGHT);
+        c.drawText("›", card.right - 28f, card.top + 39f, titlePaint);
+        titlePaint.setTextAlign(Paint.Align.LEFT);
+
+        String deviceName = getConnectedBluetoothDeviceName();
+        subTextPaint.setTextAlign(Paint.Align.LEFT);
+        subTextPaint.setTextSize(23f);
+        subTextPaint.setColor(Color.rgb(35, 35, 35));
+        drawTextEllipsize(c, "已连接 " + deviceName, card.left + 28f, card.top + 86f, subTextPaint, card.width() - 118f);
+
+        float iconY = card.top + 126f;
+        drawBluetoothStaticIcon(c, card.left + 30f, iconY);
+        drawBatteryStaticIcon(c, card.left + 62f, iconY - 14f);
+        drawSignalStaticIcon(c, card.left + 112f, iconY - 18f);
+
+        drawStaticPhonePreview(c, card);
+    }
+
+    private String getConnectedBluetoothDeviceName() {
+        try {
+            BluetoothAdapter adapter = BluetoothAdapter.getDefaultAdapter();
+            if (adapter == null || !adapter.isEnabled()) {
+                return "Miku Phone";
+            }
+
+            Set<BluetoothDevice> devices = adapter.getBondedDevices();
+            if (devices == null || devices.isEmpty()) {
+                return "Miku Phone";
+            }
+
+            for (BluetoothDevice device : devices) {
+                if (device == null) continue;
+                try {
+                    java.lang.reflect.Method method = device.getClass().getMethod("isConnected");
+                    Object result = method.invoke(device);
+                    if (result instanceof Boolean && (Boolean) result) {
+                        String name = device.getName();
+                        if (name != null && name.trim().length() > 0) {
+                            return name.trim();
+                        }
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return "Miku Phone";
+    }
+
+    private void drawBluetoothStaticIcon(Canvas c, float x, float y) {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(Color.rgb(80, 90, 105));
+        p.setStrokeWidth(2.6f);
+        p.setStyle(Paint.Style.STROKE);
+
+        c.drawLine(x, y - 13f, x, y + 13f, p);
+        c.drawLine(x, y - 13f, x + 9f, y - 5f, p);
+        c.drawLine(x + 9f, y - 5f, x, y + 2f, p);
+        c.drawLine(x, y + 2f, x + 9f, y + 10f, p);
+        c.drawLine(x + 9f, y + 10f, x, y + 18f, p);
+        c.drawLine(x, y + 2f, x - 8f, y - 7f, p);
+        c.drawLine(x, y + 2f, x - 8f, y + 11f, p);
+    }
+
+    private void drawBatteryStaticIcon(Canvas c, float x, float y) {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setStyle(Paint.Style.STROKE);
+        p.setStrokeWidth(2f);
+        p.setColor(Color.rgb(80, 90, 105));
+        RectF body = new RectF(x, y, x + 32f, y + 16f);
+        c.drawRoundRect(body, 3f, 3f, p);
+        c.drawRect(x + 34f, y + 5f, x + 38f, y + 11f, p);
+
+        Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
+        fill.setColor(Color.rgb(80, 210, 95));
+        fill.setStyle(Paint.Style.FILL);
+        c.drawRoundRect(new RectF(x + 3f, y + 3f, x + 25f, y + 13f), 2f, 2f, fill);
+    }
+
+    private void drawSignalStaticIcon(Canvas c, float x, float y) {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(Color.rgb(80, 90, 105));
+        p.setStyle(Paint.Style.FILL);
+        c.drawRect(x, y + 20f, x + 5f, y + 27f, p);
+        c.drawRect(x + 9f, y + 14f, x + 14f, y + 27f, p);
+        c.drawRect(x + 18f, y + 8f, x + 23f, y + 27f, p);
+    }
+
+    private void drawStaticPhonePreview(Canvas c, RectF card) {
+        RectF phone = new RectF(card.right - 82f, card.top + 28f, card.right - 30f, card.bottom - 24f);
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(Color.rgb(225, 228, 232));
+        c.drawRoundRect(phone, 10f, 10f, p);
+
+        p.setColor(Color.rgb(245, 247, 249));
+        c.drawRoundRect(new RectF(phone.left + 5f, phone.top + 5f, phone.right - 5f, phone.bottom - 5f), 8f, 8f, p);
+
+        p.setColor(Color.rgb(18, 18, 18));
+        c.drawCircle(phone.right - 18f, phone.top + 18f, 12f, p);
+        p.setColor(Color.rgb(60, 60, 60));
+        c.drawCircle(phone.right - 18f, phone.top + 18f, 7f, p);
+    }
+
+    private void drawRoundedBitmap(Canvas c, Bitmap bitmap, RectF dst, float radius) {
+        if (bitmap == null) {
+            return;
+        }
+        int save = c.save();
+        Path path = new Path();
+        path.addRoundRect(dst, radius, radius, Path.Direction.CW);
+        c.clipPath(path);
+        c.drawBitmap(bitmap, null, dst, bitmapPaint);
+        c.restoreToCount(save);
+    }
+
+    private void openBluetoothMusicActivity() {
+        try {
+            Intent intent = new Intent();
+            intent.setComponent(new ComponentName("com.ts.MainUI", "com.ts.bt.BtMusicActivity"));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            getContext().startActivity(intent);
+        } catch (Throwable t) {
+            Toast.makeText(getContext(), "无法打开蓝牙音乐界面", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -873,6 +1040,20 @@ public class LauncherCanvasView extends View {
                 appSelectionVisible = false;
                 invalidate();
             }
+
+            pressedMusicButton = -1;
+            if (activeIndex == 0) {
+                if (getMusicPrevButtonRect().contains(x, y)) {
+                    pressedMusicButton = 0;
+                    invalidate();
+                } else if (getMusicPlayButtonRect().contains(x, y)) {
+                    pressedMusicButton = 1;
+                    invalidate();
+                } else if (getMusicNextButtonRect().contains(x, y)) {
+                    pressedMusicButton = 2;
+                    invalidate();
+                }
+            }
             return true;
         }
 
@@ -909,6 +1090,10 @@ public class LauncherCanvasView extends View {
             if (activeIndex == 0) {
                 RectF card2 = new RectF(748f, 35.5f, 1140f, 350.5f);
                 if (card2.contains(x, y)) {
+                    int pressed = pressedMusicButton;
+                    pressedMusicButton = -1;
+                    invalidate();
+
                     if (!isNotificationListenerEnabled()) {
                         if (getMusicPermissionButtonRect().contains(x, y) || card2.contains(x, y)) {
                             openNotificationListenerSettings();
@@ -916,15 +1101,15 @@ public class LauncherCanvasView extends View {
                         }
                     }
 
-                    if (getMusicPrevButtonRect().contains(x, y)) {
+                    if (pressed == 0 && getMusicPrevButtonRect().contains(x, y)) {
                         controlMusic(0);
                         return true;
                     }
-                    if (getMusicPlayButtonRect().contains(x, y)) {
+                    if (pressed == 1 && getMusicPlayButtonRect().contains(x, y)) {
                         controlMusic(1);
                         return true;
                     }
-                    if (getMusicNextButtonRect().contains(x, y)) {
+                    if (pressed == 2 && getMusicNextButtonRect().contains(x, y)) {
                         controlMusic(2);
                         return true;
                     }
@@ -932,6 +1117,15 @@ public class LauncherCanvasView extends View {
                         openDefaultMusicApp();
                         return true;
                     }
+                } else if (pressedMusicButton != -1) {
+                    pressedMusicButton = -1;
+                    invalidate();
+                }
+
+                RectF card3 = new RectF(748f, 368.5f, 1140f, 528.5f);
+                if (card3.contains(x, y)) {
+                    openBluetoothMusicActivity();
+                    return true;
                 }
             }
 
@@ -1191,6 +1385,8 @@ public class LauncherCanvasView extends View {
                 } else {
                     controlMusic(1);
                 }
+            } else if (selectedCardIndex == 2) {
+                openBluetoothMusicActivity();
             } else {
                 Toast.makeText(getContext(), (selectedCardIndex + 1) + "号卡片", Toast.LENGTH_SHORT).show();
             }

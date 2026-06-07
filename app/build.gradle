@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 21
-        versionName '0.3.0-card2-music-player'
+        versionCode 22
+        versionName '0.3.1-card2-feedback-card3-bluetooth'
     }
 
     // GitHub 网页上传不会自动删除旧文件。
