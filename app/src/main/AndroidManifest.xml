@@ -26,6 +26,10 @@
             android:name=".HiddenAppsActivity"
             android:screenOrientation="landscape"
             android:exported="false" />
+        <activity
+            android:name=".AppDrawerSettingsActivity"
+            android:screenOrientation="landscape"
+            android:exported="false" />
 
         <activity
             android:name=".MainActivity"

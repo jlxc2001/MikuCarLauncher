@@ -65,11 +65,17 @@ public class MainActivity extends Activity {
                 break;
 
             case 5: // 应用
-                startActivity(new Intent(this, AppListActivity.class));
+                // 应用抽屉现在以内嵌大卡片形式显示在主界面内，保留左侧按钮列。
+                if (launcherView != null) {
+                    launcherView.invalidate();
+                }
                 break;
 
             case 6: // 我的
-                startActivity(new Intent(this, MineActivity.class));
+                // “我的”现在以内嵌大卡片形式显示在主界面内，保留左侧按钮列。
+                if (launcherView != null) {
+                    launcherView.invalidate();
+                }
                 break;
         }
     }

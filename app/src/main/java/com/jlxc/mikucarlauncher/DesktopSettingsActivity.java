@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -17,6 +18,7 @@ public class DesktopSettingsActivity extends Activity {
 
     private TextView navValue;
     private TextView musicValue;
+    private TextView drawerStyleValue;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -40,7 +42,7 @@ public class DesktopSettingsActivity extends Activity {
 
         TextView title = new TextView(this);
         title.setText("车机桌面设置");
-        title.setTextSize(26);
+        title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 26);
         title.setTextColor(Color.rgb(20, 20, 20));
         title.setGravity(Gravity.CENTER_VERTICAL);
         root.addView(title, new LinearLayout.LayoutParams(
@@ -62,6 +64,15 @@ public class DesktopSettingsActivity extends Activity {
             @Override
             public void onClick(View view) {
                 openPicker("music");
+            }
+        });
+
+        drawerStyleValue = addValue(root, "应用抽屉显示：");
+        Button drawerSettings = addButton(root, "应用抽屉显示设置");
+        drawerSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(DesktopSettingsActivity.this, AppDrawerSettingsActivity.class));
             }
         });
 
@@ -88,7 +99,7 @@ public class DesktopSettingsActivity extends Activity {
     private TextView addValue(LinearLayout root, String label) {
         TextView tv = new TextView(this);
         tv.setText(label);
-        tv.setTextSize(20);
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
         tv.setTextColor(Color.rgb(28, 28, 28));
         tv.setGravity(Gravity.CENTER_VERTICAL);
         tv.setPadding(22, 0, 22, 0);
@@ -104,7 +115,7 @@ public class DesktopSettingsActivity extends Activity {
     private Button addButton(LinearLayout root, String text) {
         Button button = new Button(this);
         button.setText(text);
-        button.setTextSize(18);
+        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 58
         );
@@ -119,8 +130,14 @@ public class DesktopSettingsActivity extends Activity {
             navValue.setText("默认导航软件： " + sp.getString("nav_label", "高德地图车机版 / com.autonavi.amapauto"));
         }
         if (musicValue != null) {
-            navValue.setText("默认导航软件： " + sp.getString("nav_label", "高德地图车机版 / com.autonavi.amapauto"));
             musicValue.setText("默认音乐软件： " + sp.getString("music_label", "车机蓝牙音乐 / com.ts.MainUI"));
+        }
+        if (drawerStyleValue != null) {
+            int iconSize = sp.getInt("drawer_icon_size_dp", 72);
+            int textSize = sp.getInt("drawer_text_size_sp", 16);
+            int columns = sp.getInt("drawer_grid_columns", 6);
+            int rows = sp.getInt("drawer_grid_rows", 3);
+            drawerStyleValue.setText("应用抽屉显示： " + rows + "×" + columns + "，图标 " + iconSize + "dp，文字 " + textSize + "sp");
         }
     }
 

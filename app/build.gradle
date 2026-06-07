@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 12
-        versionName '0.2.1-card-vertical-balance'
+        versionCode 13
+        versionName '0.2.2-appdrawer-grid-settings'
     }
 
     // GitHub 网页上传不会自动删除旧文件。
