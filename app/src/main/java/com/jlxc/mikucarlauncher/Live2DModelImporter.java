@@ -301,9 +301,10 @@ public final class Live2DModelImporter {
     private static String motionJson(double duration, boolean loop, String[] curves) {
         int segmentCount = 0;
         int pointCount = 0;
-        for (String ignored : curves) {
-            // 当前每条曲线都用 3~5 个点，直接从字符串里数 “,0,” 不稳。
-            // 调用方传入的 Meta 只是给 Cubism 解析器参考；实际曲线数据在 Curves 内。
+        for (String curve : curves) {
+            int c = countOccurrences(curve, ",0,");
+            segmentCount += c;
+            pointCount += c + 1;
         }
 
         StringBuilder sb = new StringBuilder();
@@ -316,9 +317,8 @@ public final class Live2DModelImporter {
         sb.append("\"FadeInTime\":0.5,\n");
         sb.append("\"FadeOutTime\":0.5,\n");
         sb.append("\"CurveCount\":").append(curves.length).append(",\n");
-        // 这里按线性段估算即可；Cubism 解析主要依赖 Curves.Segments。
-        sb.append("\"TotalSegmentCount\":").append(Math.max(1, curves.length * 4)).append(",\n");
-        sb.append("\"TotalPointCount\":").append(Math.max(2, curves.length * 5)).append("\n");
+        sb.append("\"TotalSegmentCount\":").append(Math.max(1, segmentCount)).append(",\n");
+        sb.append("\"TotalPointCount\":").append(Math.max(2, pointCount)).append("\n");
         sb.append("},\n");
         sb.append("\"Curves\":[\n");
         for (int i = 0; i < curves.length; i++) {
@@ -328,6 +328,22 @@ public final class Live2DModelImporter {
         sb.append("\n]\n");
         sb.append("}\n");
         return sb.toString();
+    }
+
+    private static int countOccurrences(String text, String target) {
+        if (text == null || target == null || target.length() == 0) {
+            return 0;
+        }
+        int count = 0;
+        int index = 0;
+        while (true) {
+            index = text.indexOf(target, index);
+            if (index < 0) {
+                return count;
+            }
+            count++;
+            index += target.length();
+        }
     }
 
     private static String format(double v) {

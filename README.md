@@ -400,3 +400,19 @@ A4L 车机桌面项目。
   - 使用默认动作时：切换微笑/点头/看向/眨眼等默认效果，并随机表情
 - 保留 v54 的 Live2D 专用遮罩，避免腿部从 5 号卡片下方露出。
 - 说明：没有直接内置 Live2DViewerEX 的专有动作文件，而是做了接近 ViewerEX 默认待机观感的通用参数级效果。
+
+
+## v56
+- 修复 v55 仍然露腿的问题：
+  - 除 Pixi mask 外，额外给 Live2D WebView 内部 stage 做 CSS 裁切。
+  - 只裁切 Live2D 内容，不遮挡 App 背景，也不改变 5 号卡片形状。
+  - 调整页面 `clip=0`，不会影响用户拖动/捏合调位置。
+- 修复默认 `.motion3.json` 可能不生效的问题：
+  - 修正 `Meta.TotalSegmentCount` 与 `Meta.TotalPointCount`，不再使用粗略估算。
+  - 之前部分运行库可能因为 motion3 元数据不匹配而忽略默认动作。
+- 默认待机效果加强：
+  - 同时兼容 Cubism 3/4 参数名 `ParamAngleX` 等，以及 Cubism 2 风格参数名 `PARAM_ANGLE_X` 等。
+  - 参数设置前会检查参数是否存在，避免一个不存在的参数名挡住后续兼容参数名。
+  - 没有头部/身体参数时，增加很小幅度的容器级兜底动作，保证能看到轻微待机变化。
+- 眨眼仍然通过 `ParamEyeLOpen` / `ParamEyeROpen` 和 `PARAM_EYE_L_OPEN` / `PARAM_EYE_R_OPEN` 尝试实现。
+- 保留点击人物切换动作和随机表情逻辑。

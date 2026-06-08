@@ -284,6 +284,7 @@ public class Live2DDecorView extends FrameLayout {
                     + "&cy=" + URLEncoder.encode(String.valueOf(centerY), "UTF-8")
                     + "&scale=" + URLEncoder.encode(String.valueOf(scale), "UTF-8")
                     + "&dw=2560&dh=720"
+                    + "&clip=" + (adjustMode ? "0" : "1")
                     + "&t=" + System.currentTimeMillis();
         } catch (Throwable t) {
             return "file:///android_asset/live2d/live2d_decor.html";

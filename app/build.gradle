@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 46
-        versionName '0.5.5-live2d-blink-viewer-idle'
+        versionCode 47
+        versionName '0.5.6-live2d-clip-motion-fix'
     }
 
     // GitHub 网页上传不会自动删除旧文件。

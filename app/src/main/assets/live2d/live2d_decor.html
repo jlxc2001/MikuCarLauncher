@@ -50,6 +50,7 @@
   const modelUrl = params.get("model") || "";
   const designW = parseFloat(params.get("dw") || "2560") || 2560;
   const designH = parseFloat(params.get("dh") || "720") || 720;
+  const shouldClipLive2D = params.get("clip") !== "0";
 
   let centerX = parseFloat(params.get("cx") || "1448") || 1448;
   let centerY = parseFloat(params.get("cy") || "420") || 420;
@@ -71,7 +72,7 @@
   const live2DClipBottomDesignY = 546.5;
   let live2DMask = null;
 
-  // v55：默认待机效果不再用整体缩放/漂浮，而是尽量模拟 ViewerEX 那种参数级待机：
+  // v56：默认待机效果不再用整体缩放/漂浮，而是尽量模拟 ViewerEX 那种参数级待机：
   // 眼睛随机眨眼、头部轻微看向、身体小幅摆动；只在模型无自带动作/使用注入默认动作时启用。
   let elapsedSec = 0;
   let nextBlinkSec = 1.2 + Math.random() * 2.5;
@@ -143,16 +144,40 @@
   }
 
   function updateLive2DMask() {
-    if (!app || !model || !window.PIXI) return;
+    const stage = document.getElementById("stage");
 
-    if (!live2DMask) {
-      live2DMask = new PIXI.Graphics();
-      app.stage.addChild(live2DMask);
-      model.mask = live2DMask;
+    if (!shouldClipLive2D) {
+      if (stage) {
+        stage.style.height = "100vh";
+        stage.style.overflow = "hidden";
+      }
+      if (model) {
+        model.mask = null;
+      }
+      if (live2DMask) {
+        live2DMask.clear();
+      }
+      return;
     }
+
+    if (!app || !model || !window.PIXI) return;
 
     const clipBottom = live2DClipBottomDesignY * stageScaleY();
 
+    // 第一层：CSS 裁切 WebView 内的 stage。这个比 Pixi mask 更稳定，
+    // 可以避免 WebView / Canvas 硬件加速时 Pixi mask 偶发不生效。
+    if (stage) {
+      stage.style.height = Math.max(0, clipBottom) + "px";
+      stage.style.overflow = "hidden";
+    }
+
+    // 第二层：Pixi mask 只作用于模型本身，不会遮挡 App 背景和卡片。
+    if (!live2DMask) {
+      live2DMask = new PIXI.Graphics();
+      app.stage.addChild(live2DMask);
+    }
+
+    model.mask = live2DMask;
     live2DMask.clear();
     live2DMask.beginFill(0xffffff, 1);
     live2DMask.drawRect(0, 0, window.innerWidth, Math.max(0, clipBottom));
@@ -204,31 +229,37 @@
     }
   }
 
+  function findParamIndex(core, id) {
+    try {
+      if (core && typeof core.getParameterIndex === "function") {
+        const idx = core.getParameterIndex(id);
+        if (typeof idx === "number" && idx >= 0) {
+          return idx;
+        }
+      }
+    } catch (e) {}
+    return -1;
+  }
+
   function setParam(id, value) {
     const core = getCoreModel();
     if (!core) return false;
 
-    try {
-      if (typeof core.setParameterValueById === "function") {
-        core.setParameterValueById(id, value);
-        return true;
-      }
-    } catch (e) {}
-
-    try {
-      if (typeof core.addParameterValueById === "function") {
-        core.addParameterValueById(id, value);
-        return true;
-      }
-    } catch (e) {}
-
-    try {
-      if (typeof core.getParameterIndex === "function" && typeof core.setParameterValueByIndex === "function") {
-        const idx = core.getParameterIndex(id);
-        if (idx >= 0) {
+    const idx = findParamIndex(core, id);
+    if (idx >= 0) {
+      try {
+        if (typeof core.setParameterValueByIndex === "function") {
           core.setParameterValueByIndex(idx, value);
           return true;
         }
+      } catch (e) {}
+    }
+
+    // 某些运行库没有 getParameterIndex，只能按 id 设置。
+    try {
+      if (idx < 0 && typeof core.setParameterValueById === "function" && typeof core.getParameterIndex !== "function") {
+        core.setParameterValueById(id, value);
+        return true;
       }
     } catch (e) {}
 
@@ -239,15 +270,43 @@
     const core = getCoreModel();
     if (!core) return false;
 
-    try {
-      if (typeof core.addParameterValueById === "function") {
-        core.addParameterValueById(id, value);
+    const idx = findParamIndex(core, id);
+    if (idx >= 0) {
+      try {
+        if (typeof core.addParameterValueById === "function") {
+          core.addParameterValueById(id, value);
+          return true;
+        }
+      } catch (e) {}
+
+      try {
+        if (typeof core.getParameterValueByIndex === "function" && typeof core.setParameterValueByIndex === "function") {
+          const current = core.getParameterValueByIndex(idx);
+          core.setParameterValueByIndex(idx, current + value);
+          return true;
+        }
+      } catch (e) {}
+    }
+
+    return false;
+  }
+
+  function setParamAny(ids, value) {
+    for (const id of ids) {
+      if (setParam(id, value)) {
         return true;
       }
-    } catch (e) {}
+    }
+    return false;
+  }
 
-    // 没有 add 接口时退化为 set。
-    return setParam(id, value);
+  function addParamAny(ids, value) {
+    for (const id of ids) {
+      if (addParam(id, value)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   function getMotionCandidates() {
@@ -583,8 +642,8 @@
       }
 
       open = clamp(open, 0, 1);
-      setParam("ParamEyeLOpen", open);
-      setParam("ParamEyeROpen", open);
+      setParamAny(["ParamEyeLOpen", "PARAM_EYE_L_OPEN"], open);
+      setParamAny(["ParamEyeROpen", "PARAM_EYE_R_OPEN"], open);
     }
   }
 
@@ -612,9 +671,9 @@
         angleX += Math.sin(p * Math.PI * 2) * 11 * (1 - p * 0.25);
         angleZ += Math.sin(p * Math.PI * 2) * 3;
       } else if (defaultActionKind === "smile") {
-        setParam("ParamMouthForm", 0.8 * e);
-        setParam("ParamMouthOpenY", 0.18 + 0.16 * e);
-        setParam("ParamEyeSmile", 0.75 * e);
+        setParamAny(["ParamMouthForm", "PARAM_MOUTH_FORM"], 0.8 * e);
+        setParamAny(["ParamMouthOpenY", "PARAM_MOUTH_OPEN_Y"], 0.18 + 0.16 * e);
+        setParamAny(["ParamEyeSmile", "PARAM_EYE_SMILE"], 0.75 * e);
       }
 
       if (p >= 1) {
@@ -623,17 +682,39 @@
       }
     }
 
-    setParam("ParamAngleX", angleX);
-    setParam("ParamAngleY", angleY);
-    setParam("ParamAngleZ", angleZ);
-    setParam("ParamBodyAngleX", bodyX);
-    setParam("ParamBreath", breath);
+    setParamAny(["ParamAngleX", "PARAM_ANGLE_X"], angleX);
+    setParamAny(["ParamAngleY", "PARAM_ANGLE_Y"], angleY);
+    setParamAny(["ParamAngleZ", "PARAM_ANGLE_Z"], angleZ);
+    setParamAny(["ParamBodyAngleX", "PARAM_BODY_ANGLE_X"], bodyX);
+    setParamAny(["ParamBreath", "PARAM_BREATH"], breath);
 
     // 常见模型的头发/服装辅助参数；没有这些参数时会自动忽略。
-    addParam("ParamHairFront", Math.sin(t * 1.15) * 0.08);
-    addParam("ParamHairBack", Math.sin(t * 0.92 + 1.3) * 0.08);
-    addParam("ParamBustX", Math.sin(t * 0.55) * 0.02);
-    addParam("ParamBustY", Math.sin(t * 0.74) * 0.02);
+    addParamAny(["ParamHairFront", "PARAM_HAIR_FRONT"], Math.sin(t * 1.15) * 0.08);
+    addParamAny(["ParamHairBack", "PARAM_HAIR_BACK"], Math.sin(t * 0.92 + 1.3) * 0.08);
+    addParamAny(["ParamBustX", "PARAM_BUST_X"], Math.sin(t * 0.55) * 0.02);
+    addParamAny(["ParamBustY", "PARAM_BUST_Y"], Math.sin(t * 0.74) * 0.02);
+
+    // 兜底的容器级动作：幅度很小，只在默认动作模式启用。
+    // 这样某些模型没有 ParamAngleX / ParamBodyAngleX 时，也能看到类似 ViewerEX 的轻微待机。
+    let extraX = Math.sin(t * 0.42 + 0.5) * 5.0;
+    let extraY = Math.sin(t * 0.58 + 1.2) * 1.8;
+    let extraRot = angleZ * 0.0024;
+
+    if (defaultActionStartSec >= 0) {
+      const p2 = clamp((elapsedSec - defaultActionStartSec) / Math.max(0.01, defaultActionDurationSec), 0, 1);
+      const e2 = pulse(p2);
+      if (defaultActionKind === "look") {
+        extraX += Math.sin(p2 * Math.PI * 2) * 10.0 * (1 - p2 * 0.2);
+      } else if (defaultActionKind === "nod") {
+        extraY += Math.sin(p2 * Math.PI * 4) * 5.0 * (1 - p2);
+      } else if (defaultActionKind === "smile") {
+        extraRot += Math.sin(p2 * Math.PI) * 0.006;
+      }
+    }
+
+    model.x = centerX * stageScaleX() + extraX * stageScaleX();
+    model.y = centerY * stageScaleY() + extraY * stageScaleY();
+    model.rotation = extraRot;
 
     updateBlink();
   }
