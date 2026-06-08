@@ -1,0 +1,104 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      pointer-events: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    #stage {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: transparent;
+      pointer-events: none;
+    }
+    canvas {
+      background: transparent !important;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  const modelUrl = params.get("model") || "";
+  const userScale = parseFloat(params.get("scale") || "1") || 1;
+
+  function loadScript(src) {
+    return new Promise(function(resolve, reject) {
+      const s = document.createElement("script");
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
+  }
+
+  async function main() {
+    if (!modelUrl) return;
+
+    // WebView 装饰层：先用 CDN 运行库，后续也可以把这些 JS 放成本地 assets 再改成 file:///android_asset/。
+    await loadScript("https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js");
+    await loadScript("https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js");
+    await loadScript("https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js");
+
+    const app = new PIXI.Application({
+      view: document.createElement("canvas"),
+      width: window.innerWidth,
+      height: window.innerHeight,
+      transparent: true,
+      autoDensity: true,
+      resolution: window.devicePixelRatio || 1,
+      antialias: true
+    });
+
+    const stage = document.getElementById("stage");
+    stage.innerHTML = "";
+    stage.appendChild(app.view);
+
+    const Live2DModel = PIXI.live2d.Live2DModel;
+    const model = await Live2DModel.from(modelUrl, { autoInteract: false });
+    app.stage.addChild(model);
+
+    function layout() {
+      app.renderer.resize(window.innerWidth, window.innerHeight);
+      try {
+        if (model.anchor) model.anchor.set(0.5, 0.5);
+      } catch (e) {}
+      const bw = model.width || 1;
+      const bh = model.height || 1;
+      const baseScale = Math.min(window.innerWidth / bw, window.innerHeight / bh) * 0.92;
+      model.scale.set(baseScale * userScale);
+      model.x = window.innerWidth * 0.50;
+      model.y = window.innerHeight * 0.60;
+    }
+
+    layout();
+    window.addEventListener("resize", layout);
+
+    if (model.motion) {
+      try { model.motion("Idle"); } catch (e) {}
+    }
+  }
+
+  main().catch(function(e) {
+    // 失败时保持透明，不遮挡桌面。
+    console.log("Live2D load failed", e);
+    document.getElementById("stage").innerHTML = "";
+  });
+})();
+</script>
+</body>
+</html>

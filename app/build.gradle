@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 38
-        versionName '0.4.7-day-night-bg-icon-picker'
+        versionCode 39
+        versionName '0.4.8-live2d-layer'
     }
 
     // GitHub 网页上传不会自动删除旧文件。

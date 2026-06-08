@@ -30,6 +30,8 @@ public class MainActivity extends Activity {
     private static final float CARD1_B = 528.5f;
     private static final float CARD1_WIDGET_INSET = 12f;
 
+    private LauncherBackgroundView backgroundView;
+    private Live2DDecorView live2DView;
     private LauncherCanvasView launcherView;
     private FrameLayout rootLayout;
     private AppWidgetManager appWidgetManager;
@@ -48,11 +50,27 @@ public class MainActivity extends Activity {
 
         rootLayout = new FrameLayout(this);
 
+        // 层级顺序：
+        // 1. 背景层
+        // 2. Live2D 装饰层
+        // 3. 桌面 UI / 功能卡片层
+        // 4. 1号卡片 AppWidget 层（需要时 bringToFront）
+        backgroundView = new LauncherBackgroundView(this);
+        rootLayout.addView(backgroundView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        live2DView = new Live2DDecorView(this);
+        rootLayout.addView(live2DView, new FrameLayout.LayoutParams(1, 1));
+
         launcherView = new LauncherCanvasView(this);
+        launcherView.setDrawBackgroundLayer(false);
         launcherView.setOnMenuClickListener(new LauncherCanvasView.OnMenuClickListener() {
             @Override
             public void onMenuClick(int index, String label) {
                 handleMenuClick(index);
+                updateLive2DVisibility();
                 updateCard1WidgetVisibility();
             }
         });
@@ -67,6 +85,7 @@ public class MainActivity extends Activity {
         rootLayout.post(new Runnable() {
             @Override
             public void run() {
+                updateLive2DVisibility();
                 updateCard1WidgetVisibility();
             }
         });
@@ -171,6 +190,52 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void updateLive2DVisibility() {
+        if (rootLayout == null || launcherView == null || live2DView == null) {
+            return;
+        }
+
+        live2DView.applySettings();
+
+        boolean shouldShow = launcherView.getActiveIndex() == 0 && live2DView.isLive2DEnabled();
+        if (!shouldShow) {
+            live2DView.setVisibility(View.GONE);
+            return;
+        }
+
+        positionLive2DView();
+        live2DView.setVisibility(View.VISIBLE);
+    }
+
+    private void positionLive2DView() {
+        if (rootLayout == null || live2DView == null) {
+            return;
+        }
+
+        int rw = rootLayout.getWidth();
+        int rh = rootLayout.getHeight();
+        if (rw <= 0 || rh <= 0) {
+            return;
+        }
+
+        SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+        float x = sp.getFloat(Live2DDecorView.PREF_X, Live2DDecorView.DEFAULT_X);
+        float y = sp.getFloat(Live2DDecorView.PREF_Y, Live2DDecorView.DEFAULT_Y);
+        float w = sp.getFloat(Live2DDecorView.PREF_W, Live2DDecorView.DEFAULT_W);
+        float h = sp.getFloat(Live2DDecorView.PREF_H, Live2DDecorView.DEFAULT_H);
+
+        float sx = rw / DESIGN_W;
+        float sy = rh / DESIGN_H;
+
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                Math.max(1, Math.round(w * sx)),
+                Math.max(1, Math.round(h * sy))
+        );
+        lp.leftMargin = Math.round(x * sx);
+        lp.topMargin = Math.round(y * sy);
+        live2DView.setLayoutParams(lp);
+    }
+
     private void updateCard1WidgetVisibility() {
         if (rootLayout == null || launcherView == null) {
             return;
@@ -272,6 +337,7 @@ public class MainActivity extends Activity {
         if (launcherView != null) {
             launcherView.showHomePage();
         }
+        updateLive2DVisibility();
         updateCard1WidgetVisibility();
     }
 
@@ -299,8 +365,14 @@ public class MainActivity extends Activity {
         if (appWidgetHost != null) {
             appWidgetHost.startListening();
         }
+        if (backgroundView != null) {
+            backgroundView.invalidate();
+        }
         if (launcherView != null) {
             launcherView.invalidateAppIconCaches();
+        }
+        if (live2DView != null) {
+            live2DView.applySettings();
         }
         if (rootLayout != null) {
             rootLayout.post(new Runnable() {
@@ -325,6 +397,10 @@ public class MainActivity extends Activity {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
             keepFullscreen();
+            if (backgroundView != null) {
+                backgroundView.invalidate();
+            }
+            updateLive2DVisibility();
             positionCard1Widget();
         }
     }

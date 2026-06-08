@@ -273,3 +273,15 @@ A4L 车机桌面项目。
 - 长按应用图标 → 更换图标：新增“从当前图标包选择任意图标”。
 - 新增图标包图标选择器：读取当前图标包 appfilter.xml 中列出的所有图标名称，进入后以 8 列网格显示，可为单个应用选择任意图标。
 - 保留原有“从图片选择自定义图标”“使用当前图标包对应图标”“恢复系统默认图标”。
+
+
+## v48
+- 新增 Live2D 装饰模型层，层级位于 APP 背景之上、所有功能卡片和左侧按钮之下。
+- MainActivity 层级拆分为：背景层 → Live2D 装饰层 → 桌面 UI / 功能卡片层 → 1号卡片 AppWidget 层。
+- 新增 `LauncherBackgroundView`，专门绘制日间/夜间背景，原 `LauncherCanvasView` 可关闭背景绘制。
+- 新增 `Live2DDecorView`，使用透明 WebView 承载 Live2D 模型。
+- 新增 `Live2DSettingsActivity`：我的 → 车机桌面设置 → Live2D 装饰模型设置。
+- Live2D 可配置启用/关闭、model3.json/model.json 路径或 URL、位置 X/Y、宽高、模型缩放。
+- 默认放置区域为首页中间偏右空白区域：x=1188, y=246, w=520, h=300。
+- 支持 `/sdcard/MikuCarLauncher/live2d/xxx/model3.json` 这类本地模型路径，也支持 http/https/file/content URI。
+- 当前版本先用 WebView + 在线 JS 运行库方案，首次加载运行库需要联网；模型文件夹内 moc3、贴图、physics 等资源需保持 Live2D 原目录结构。

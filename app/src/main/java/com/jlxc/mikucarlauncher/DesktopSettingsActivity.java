@@ -185,6 +185,14 @@ public class DesktopSettingsActivity extends Activity {
             }
         });
 
+        Button live2DSettings = addButton(root, "Live2D 装饰模型设置");
+        live2DSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(DesktopSettingsActivity.this, Live2DSettingsActivity.class));
+            }
+        });
+
         dayBackgroundValue = addValue(root, "日间背景图片：");
         Button chooseDayBackground = addButton(root, "更换日间背景图片");
         chooseDayBackground.setOnClickListener(new View.OnClickListener() {

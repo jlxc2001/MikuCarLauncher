@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.BIND_APPWIDGET" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
@@ -12,6 +13,10 @@
         android:resizeableActivity="true"
         android:usesCleartextTraffic="true">
 
+        <activity
+            android:name=".Live2DSettingsActivity"
+            android:screenOrientation="landscape"
+            android:exported="false" />
         <activity
             android:name=".IconPackIconPickerActivity"
             android:screenOrientation="landscape"

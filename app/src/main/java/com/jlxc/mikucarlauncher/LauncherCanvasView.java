@@ -125,6 +125,7 @@ public class LauncherCanvasView extends View {
     private final VehicleDataProvider vehicleDataProvider;
     private final WeatherProvider weatherProvider;
     private final String[] labels = {"首页", "导航", "音乐", "车辆", "全景", "应用", "我的"};
+    private boolean drawBackgroundLayer = true;
 
     private final Paint bitmapPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
     private final Paint iconPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
@@ -299,6 +300,11 @@ public class LauncherCanvasView extends View {
         musicButtonPaint.setTypeface(Typeface.DEFAULT_BOLD);
     }
 
+    public void setDrawBackgroundLayer(boolean drawBackgroundLayer) {
+        this.drawBackgroundLayer = drawBackgroundLayer;
+        invalidate();
+    }
+
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
@@ -438,7 +444,9 @@ public class LauncherCanvasView extends View {
 
     private void drawDesign(Canvas c) {
         applyThemeColors();
-        drawAppBackground(c);
+        if (drawBackgroundLayer) {
+            drawAppBackground(c);
+        }
 
         // 左侧功能列底板，无论在哪个页面都一直保留。
         c.drawRect(0, 0, sidebarW, DESIGN_H, sidebarPaint);
