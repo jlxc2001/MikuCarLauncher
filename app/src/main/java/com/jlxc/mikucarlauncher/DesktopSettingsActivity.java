@@ -38,6 +38,7 @@ public class DesktopSettingsActivity extends Activity {
     private TextView commonAppsValue;
     private TextView weatherValue;
     private TextView backgroundValue;
+    private TextView nightModeValue;
 
     private RoundedAppWidgetHost appWidgetHost;
     private AppWidgetManager appWidgetManager;
@@ -163,6 +164,15 @@ public class DesktopSettingsActivity extends Activity {
             }
         });
 
+        nightModeValue = addValue(root, "夜间模式：");
+        Button nightModeSettings = addButton(root, "夜间模式设置");
+        nightModeSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(DesktopSettingsActivity.this, NightModeSettingsActivity.class));
+            }
+        });
+
         backgroundValue = addValue(root, "APP背景：");
         Button chooseBackground = addButton(root, "更换APP背景图片");
         chooseBackground.setOnClickListener(new View.OnClickListener() {
@@ -271,6 +281,14 @@ public class DesktopSettingsActivity extends Activity {
                 code = WeatherProvider.DEFAULT_CITY_CODE;
             }
             weatherValue.setText("6号卡片天气： " + city + " / 中国天气ID " + code);
+        }
+        if (nightModeValue != null) {
+            int sunrise = sp.getInt(NightModeHelper.PREF_SUNRISE_MIN, NightModeHelper.DEFAULT_SUNRISE_MIN);
+            int sunset = sp.getInt(NightModeHelper.PREF_SUNSET_MIN, NightModeHelper.DEFAULT_SUNSET_MIN);
+            nightModeValue.setText("夜间模式： " + NightModeHelper.modeName(this)
+                    + "，当前显示 " + (NightModeHelper.isNightMode(this) ? "夜间" : "日间")
+                    + "，日出 " + NightModeHelper.formatMinute(sunrise)
+                    + " / 日落 " + NightModeHelper.formatMinute(sunset));
         }
         if (backgroundValue != null) {
             String label = sp.getString("app_background_label", "默认背景");

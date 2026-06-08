@@ -13,6 +13,10 @@
         android:usesCleartextTraffic="true">
 
         <activity
+            android:name=".NightModeSettingsActivity"
+            android:screenOrientation="landscape"
+            android:exported="false" />
+        <activity
             android:name=".WeatherSettingsActivity"
             android:screenOrientation="landscape"
             android:exported="false" />

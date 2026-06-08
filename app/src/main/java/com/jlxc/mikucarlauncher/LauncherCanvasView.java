@@ -80,6 +80,7 @@ public class LauncherCanvasView extends View {
     private static final float DESIGN_H = 720f;
 
     private final Bitmap background;
+    private final Bitmap nightBackground;
     private Bitmap customBackground;
     private String customBackgroundUri;
     private final Bitmap selectedBg;
@@ -196,6 +197,7 @@ public class LauncherCanvasView extends View {
         setLayerType(View.LAYER_TYPE_SOFTWARE, null);
 
         background = BitmapFactory.decodeResource(getResources(), R.drawable.bg_a4l);
+        nightBackground = BitmapFactory.decodeResource(getResources(), R.drawable.bg_a4l_night);
         selectedBg = BitmapFactory.decodeResource(getResources(), R.drawable.sidebar_selected_bg);
         icons[0] = BitmapFactory.decodeResource(getResources(), R.drawable.ic_home);
         icons[1] = BitmapFactory.decodeResource(getResources(), R.drawable.ic_nav);
@@ -245,37 +247,37 @@ public class LauncherCanvasView extends View {
         vehicleDataProvider.start();
         weatherProvider.start();
 
-        textPaint.setColor(Color.rgb(20, 20, 20));
+        textPaint.setColor(mainTextColor());
         textPaint.setTextSize(24f);
         textPaint.setFakeBoldText(false);
         textPaint.setTextAlign(Paint.Align.LEFT);
 
-        activeTextPaint.setColor(Color.rgb(46, 120, 255));
+        activeTextPaint.setColor(accentColor());
         activeTextPaint.setTextSize(24f);
         activeTextPaint.setFakeBoldText(false);
         activeTextPaint.setTextAlign(Paint.Align.LEFT);
 
         // 左侧按钮列背景：比主背景略深一点的灰色，按用户参考图处理。
-        sidebarPaint.setColor(Color.rgb(233, 236, 242));
+        sidebarPaint.setColor(sidebarColor());
 
         // 首页卡片。后续功能填充前，保持已确认白底卡片样式。
         cardPaint.setColor(Color.WHITE);
 
-        titlePaint.setColor(Color.rgb(18, 18, 18));
+        titlePaint.setColor(mainTextColor());
         titlePaint.setTextSize(34f);
         titlePaint.setFakeBoldText(true);
         titlePaint.setTextAlign(Paint.Align.LEFT);
 
-        subTextPaint.setColor(Color.rgb(55, 55, 55));
+        subTextPaint.setColor(subTextColor());
         subTextPaint.setTextSize(24f);
         subTextPaint.setTextAlign(Paint.Align.LEFT);
 
-        smallTextPaint.setColor(Color.rgb(100, 100, 100));
+        smallTextPaint.setColor(mutedTextColor());
         smallTextPaint.setTextSize(18f);
         smallTextPaint.setTextAlign(Paint.Align.CENTER);
 
-        rowPaint.setColor(Color.rgb(247, 248, 251));
-        dividerPaint.setColor(Color.rgb(232, 235, 241));
+        rowPaint.setColor(rowSurfaceColor());
+        dividerPaint.setColor(dividerColor());
         dividerPaint.setStrokeWidth(2f);
 
         musicButtonPaint.setColor(Color.rgb(10, 10, 10));
@@ -301,6 +303,10 @@ public class LauncherCanvasView extends View {
     }
 
     private Bitmap getCurrentBackground() {
+        if (isNightMode()) {
+            return nightBackground != null ? nightBackground : background;
+        }
+
         SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         String uriText = sp.getString("app_background_uri", "");
         if (uriText == null || uriText.length() == 0) {
@@ -329,7 +335,82 @@ public class LauncherCanvasView extends View {
         return customBackground != null ? customBackground : background;
     }
 
+    private boolean isNightMode() {
+        return NightModeHelper.isNightMode(getContext());
+    }
+
+    private void applyThemeColors() {
+        boolean night = isNightMode();
+
+        textPaint.setColor(night ? Color.rgb(232, 238, 248) : mainTextColor());
+        activeTextPaint.setColor(accentColor());
+
+        sidebarPaint.setColor(sidebarColor());
+        cardPaint.setColor(surfaceColor());
+
+        titlePaint.setColor(mainTextColor());
+        subTextPaint.setColor(subTextColor());
+        smallTextPaint.setColor(mutedTextColor());
+
+        rowPaint.setColor(rowSurfaceColor());
+        dividerPaint.setColor(dividerColor());
+        musicButtonPaint.setColor(mainTextColor());
+    }
+
+    private int accentColor() {
+        return isNightMode() ? Color.rgb(80, 158, 255) : Color.rgb(46, 120, 255);
+    }
+
+    private int mainTextColor() {
+        return isNightMode() ? Color.rgb(236, 241, 250) : Color.rgb(20, 20, 20);
+    }
+
+    private int subTextColor() {
+        return isNightMode() ? Color.rgb(204, 214, 228) : Color.rgb(55, 55, 55);
+    }
+
+    private int mutedTextColor() {
+        return isNightMode() ? Color.rgb(154, 166, 186) : Color.rgb(95, 95, 95);
+    }
+
+    private int sidebarColor() {
+        return isNightMode() ? Color.rgb(18, 24, 35) : Color.rgb(233, 236, 242);
+    }
+
+    private int surfaceColor() {
+        return isNightMode() ? Color.rgb(30, 38, 52) : Color.WHITE;
+    }
+
+    private int rowSurfaceColor() {
+        return isNightMode() ? Color.rgb(39, 49, 66) : Color.rgb(247, 248, 251);
+    }
+
+    private int selectedSurfaceColor() {
+        return isNightMode() ? Color.rgb(37, 51, 72) : Color.rgb(235, 243, 255);
+    }
+
+    private int placeholderSurfaceColor() {
+        return isNightMode() ? Color.rgb(48, 58, 74) : Color.rgb(226, 232, 239);
+    }
+
+    private int dividerColor() {
+        return isNightMode() ? Color.rgb(58, 69, 88) : Color.rgb(232, 235, 241);
+    }
+
+    private int mutedDotColor() {
+        return isNightMode() ? Color.rgb(94, 108, 130) : Color.rgb(190, 195, 205);
+    }
+
+    private int iconLineColor() {
+        return isNightMode() ? Color.rgb(220, 229, 244) : Color.rgb(80, 90, 105);
+    }
+
+    private int greenColor() {
+        return Color.rgb(80, 210, 95);
+    }
+
     private void drawDesign(Canvas c) {
+        applyThemeColors();
         drawAppBackground(c);
 
         // 左侧功能列底板，无论在哪个页面都一直保留。
@@ -396,22 +477,22 @@ public class LauncherCanvasView extends View {
     private void drawCard1WidgetSetupButton(Canvas c, RectF card) {
         subTextPaint.setTextAlign(Paint.Align.CENTER);
         subTextPaint.setTextSize(24f);
-        subTextPaint.setColor(Color.rgb(95, 95, 95));
+        subTextPaint.setColor(mutedTextColor());
         c.drawText("未设置高德地图小组件", (card.left + card.right) / 2f, 208f, subTextPaint);
 
         RectF btn = getCard1WidgetSetupButtonRect();
         Paint btnPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        btnPaint.setColor(Color.rgb(235, 243, 255));
+        btnPaint.setColor(selectedSurfaceColor());
         c.drawRoundRect(btn, 16f, 16f, btnPaint);
 
         Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
         stroke.setStyle(Paint.Style.STROKE);
         stroke.setStrokeWidth(2f);
-        stroke.setColor(Color.rgb(46, 120, 255));
+        stroke.setColor(accentColor());
         c.drawRoundRect(btn, 16f, 16f, stroke);
 
         subTextPaint.setTextSize(24f);
-        subTextPaint.setColor(Color.rgb(46, 120, 255));
+        subTextPaint.setColor(accentColor());
         c.drawText("设置小组件", (btn.left + btn.right) / 2f, btn.top + 46f, subTextPaint);
         subTextPaint.setTextAlign(Paint.Align.LEFT);
     }
@@ -422,7 +503,7 @@ public class LauncherCanvasView extends View {
         titlePaint.setTextAlign(Paint.Align.LEFT);
         titlePaint.setTextSize(22f);
         titlePaint.setFakeBoldText(true);
-        titlePaint.setColor(Color.rgb(18, 18, 18));
+        titlePaint.setColor(mainTextColor());
         c.drawText("音乐", card.left + 28f, card.top + 42f, titlePaint);
 
         titlePaint.setTextSize(28f);
@@ -435,27 +516,27 @@ public class LauncherCanvasView extends View {
         if (!hasPermission) {
             subTextPaint.setTextAlign(Paint.Align.LEFT);
             subTextPaint.setTextSize(22f);
-            subTextPaint.setColor(Color.rgb(35, 35, 35));
+            subTextPaint.setColor(mainTextColor());
             c.drawText("未获取到播放信息", card.left + 28f, card.top + 92f, subTextPaint);
 
             subTextPaint.setTextSize(18f);
-            subTextPaint.setColor(Color.rgb(95, 95, 95));
+            subTextPaint.setColor(mutedTextColor());
             c.drawText("需要开启通知读取权限", card.left + 28f, card.top + 124f, subTextPaint);
 
             RectF authBtn = getMusicPermissionButtonRect();
             Paint authPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            authPaint.setColor(Color.rgb(235, 243, 255));
+            authPaint.setColor(selectedSurfaceColor());
             c.drawRoundRect(authBtn, 14f, 14f, authPaint);
 
             Paint authStroke = new Paint(Paint.ANTI_ALIAS_FLAG);
             authStroke.setStyle(Paint.Style.STROKE);
             authStroke.setStrokeWidth(2f);
-            authStroke.setColor(Color.rgb(46, 120, 255));
+            authStroke.setColor(accentColor());
             c.drawRoundRect(authBtn, 14f, 14f, authStroke);
 
             subTextPaint.setTextAlign(Paint.Align.CENTER);
             subTextPaint.setTextSize(20f);
-            subTextPaint.setColor(Color.rgb(46, 120, 255));
+            subTextPaint.setColor(accentColor());
             c.drawText("开启音乐信息权限", (authBtn.left + authBtn.right) / 2f, authBtn.top + 38f, subTextPaint);
             subTextPaint.setTextAlign(Paint.Align.LEFT);
             return;
@@ -467,12 +548,12 @@ public class LauncherCanvasView extends View {
         subTextPaint.setTextAlign(Paint.Align.LEFT);
         subTextPaint.setTextSize(23f);
         subTextPaint.setFakeBoldText(true);
-        subTextPaint.setColor(Color.rgb(20, 20, 20));
+        subTextPaint.setColor(mainTextColor());
         drawTextEllipsize(c, title, card.left + 28f, card.top + 88f, subTextPaint, card.width() - 70f);
 
         subTextPaint.setFakeBoldText(false);
         subTextPaint.setTextSize(19f);
-        subTextPaint.setColor(Color.rgb(60, 60, 60));
+        subTextPaint.setColor(subTextColor());
         drawTextEllipsize(c, artist, card.left + 28f, card.top + 120f, subTextPaint, card.width() - 70f);
 
         RectF cover = getMusicCoverRect();
@@ -480,11 +561,11 @@ public class LauncherCanvasView extends View {
             drawRoundedBitmap(c, musicInfo.cover, cover, 8f);
         } else {
             Paint coverPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            coverPaint.setColor(Color.rgb(226, 232, 239));
+            coverPaint.setColor(placeholderSurfaceColor());
             c.drawRoundRect(cover, 10f, 10f, coverPaint);
             smallTextPaint.setTextAlign(Paint.Align.CENTER);
             smallTextPaint.setTextSize(16f);
-            smallTextPaint.setColor(Color.rgb(120, 120, 120));
+            smallTextPaint.setColor(mutedTextColor());
             c.drawText("封面", (cover.left + cover.right) / 2f, (cover.top + cover.bottom) / 2f + 6f, smallTextPaint);
         }
 
@@ -551,7 +632,7 @@ public class LauncherCanvasView extends View {
         }
 
         Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
-        fill.setColor(Color.rgb(226, 232, 242));
+        fill.setColor(placeholderSurfaceColor());
         c.drawRoundRect(r, 10f, 10f, fill);
 
         Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -798,12 +879,12 @@ public class LauncherCanvasView extends View {
         titlePaint.setTextAlign(Paint.Align.LEFT);
         titlePaint.setTextSize(19f);
         titlePaint.setFakeBoldText(true);
-        titlePaint.setColor(Color.rgb(50, 50, 50));
+        titlePaint.setColor(subTextColor());
         c.drawText("续航里程", card.left + 34f, card.top + 33f, titlePaint);
 
         titlePaint.setFakeBoldText(true);
         titlePaint.setTextSize(32f);
-        titlePaint.setColor(Color.rgb(18, 18, 18));
+        titlePaint.setColor(mainTextColor());
         String rangeText = (data.valid && data.rangeKm >= 0) ? String.valueOf(data.rangeKm) : "--";
         float rangeX = card.left + 34f;
         float rangeY = card.top + 76f;
@@ -815,12 +896,12 @@ public class LauncherCanvasView extends View {
 
         titlePaint.setFakeBoldText(false);
         titlePaint.setTextSize(18f);
-        titlePaint.setColor(Color.rgb(40, 40, 40));
+        titlePaint.setColor(subTextColor());
         c.drawText("km", rangeX + rangeTextWidth + 12f, rangeY, titlePaint);
 
         subTextPaint.setTextAlign(Paint.Align.LEFT);
         subTextPaint.setTextSize(18f);
-        subTextPaint.setColor(Color.rgb(55, 55, 55));
+        subTextPaint.setColor(subTextColor());
         String status;
         if (!data.valid || data.rangeKm < 0) {
             status = "读取中";
@@ -991,12 +1072,12 @@ public class LauncherCanvasView extends View {
         titlePaint.setTextAlign(Paint.Align.LEFT);
         titlePaint.setFakeBoldText(true);
         titlePaint.setTextSize(43f);
-        titlePaint.setColor(Color.rgb(20, 20, 20));
+        titlePaint.setColor(mainTextColor());
         drawTextEllipsize(c, hello, 1200f, 142f, titlePaint, 620f);
 
         subTextPaint.setTextAlign(Paint.Align.LEFT);
         subTextPaint.setTextSize(21f);
-        subTextPaint.setColor(Color.rgb(60, 60, 60));
+        subTextPaint.setColor(subTextColor());
         drawTextEllipsize(c, signature, 1204f, 184f, subTextPaint, 620f);
     }
 
@@ -1023,17 +1104,17 @@ public class LauncherCanvasView extends View {
         titlePaint.setTextAlign(Paint.Align.LEFT);
         titlePaint.setFakeBoldText(true);
         titlePaint.setTextSize(20f);
-        titlePaint.setColor(Color.rgb(36, 36, 36));
+        titlePaint.setColor(mainTextColor());
         c.drawText("天气", card.left + 28f, card.top + 35f, titlePaint);
 
         subTextPaint.setTextAlign(Paint.Align.LEFT);
         subTextPaint.setTextSize(18f);
-        subTextPaint.setColor(Color.rgb(80, 80, 80));
+        subTextPaint.setColor(mutedTextColor());
         drawTextEllipsize(c, city, card.left + 28f, card.top + 66f, subTextPaint, card.width() - 168f);
 
         titlePaint.setFakeBoldText(true);
         titlePaint.setTextSize(29f);
-        titlePaint.setColor(Color.rgb(22, 22, 22));
+        titlePaint.setColor(mainTextColor());
         String mainLine;
         if (weather.valid) {
             String temp = weather.temperature == null || weather.temperature.length() == 0 ? "--" : weather.temperature;
@@ -1044,7 +1125,7 @@ public class LauncherCanvasView extends View {
         drawTextEllipsize(c, mainLine, card.left + 28f, card.top + 106f, titlePaint, card.width() - 168f);
 
         subTextPaint.setTextSize(16f);
-        subTextPaint.setColor(Color.rgb(105, 105, 105));
+        subTextPaint.setColor(mutedTextColor());
         String bottomLine = weather.valid
                 ? (weather.aqi != null && weather.aqi.length() > 0 ? ("空气 " + weather.aqi) : "中国天气")
                 : "稍后重试";
@@ -1098,10 +1179,10 @@ public class LauncherCanvasView extends View {
         if (commonAppsCache.isEmpty()) {
             subTextPaint.setTextAlign(Paint.Align.CENTER);
             subTextPaint.setTextSize(22f);
-            subTextPaint.setColor(Color.rgb(95, 95, 95));
+            subTextPaint.setColor(mutedTextColor());
             c.drawText("暂未设置常用软件", (card.left + card.right) / 2f, card.top + 54f, subTextPaint);
             subTextPaint.setTextSize(18f);
-            subTextPaint.setColor(Color.rgb(46, 120, 255));
+            subTextPaint.setColor(accentColor());
             c.drawText("请到 我的 → 车机桌面设置 里添加", (card.left + card.right) / 2f, card.top + 90f, subTextPaint);
             subTextPaint.setTextAlign(Paint.Align.LEFT);
             return;
@@ -1129,7 +1210,7 @@ public class LauncherCanvasView extends View {
 
             smallTextPaint.setTextAlign(Paint.Align.CENTER);
             smallTextPaint.setTextSize(18f);
-            smallTextPaint.setColor(Color.rgb(32, 32, 32));
+            smallTextPaint.setColor(mainTextColor());
             drawCenteredTextSingleLine(c, app.label, centerX, card.top + 104f, smallTextPaint, cellW - 10f);
 
             commonAppHitRects.add(new RectF(cellLeft, cellTop, cellRight, cellBottom));
@@ -1309,14 +1390,14 @@ public class LauncherCanvasView extends View {
         titlePaint.setTextAlign(Paint.Align.LEFT);
         titlePaint.setTextSize(22f);
         titlePaint.setFakeBoldText(true);
-        titlePaint.setColor(Color.rgb(18, 18, 18));
+        titlePaint.setColor(mainTextColor());
         c.drawText("蓝牙电话", card.left + 28f, card.top + 38f, titlePaint);
 
         // 整张 3 号卡片点击都已经能打开蓝牙音乐；按用户要求删除右侧手机图标。
         String deviceName = getConnectedBluetoothDeviceName();
         subTextPaint.setTextAlign(Paint.Align.LEFT);
         subTextPaint.setTextSize(23f);
-        subTextPaint.setColor(Color.rgb(35, 35, 35));
+        subTextPaint.setColor(mainTextColor());
         float textLeft = card.left + 28f;
         float textMaxWidth = Math.max(80f, card.width() - 56f);
         drawTextEllipsize(c, "已连接 " + deviceName, textLeft, card.top + 86f, subTextPaint, textMaxWidth);
@@ -1324,7 +1405,12 @@ public class LauncherCanvasView extends View {
         // 用户提供的是三枚状态图标已经排好的一整张图：蓝牙、电量、信号。
         // 这里继续作为一个整体绘制，不拆分、不打乱顺序。
         float iconY = card.top + 122f;
-        drawBitmapFitCenter(c, btStatusGroupIcon, new RectF(card.left + 24f, iconY - 12f, card.left + 170f, iconY + 20f));
+        RectF btGroupRect = new RectF(card.left + 24f, iconY - 12f, card.left + 170f, iconY + 20f);
+        if (isNightMode()) {
+            drawBitmapTintFitCenter(c, btStatusGroupIcon, btGroupRect, iconLineColor());
+        } else {
+            drawBitmapFitCenter(c, btStatusGroupIcon, btGroupRect);
+        }
     }
 
     private String getConnectedBluetoothDeviceName() {
@@ -1360,7 +1446,7 @@ public class LauncherCanvasView extends View {
 
     private void drawBluetoothStaticIcon(Canvas c, float x, float y) {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setColor(Color.rgb(80, 90, 105));
+        p.setColor(iconLineColor());
         p.setStrokeWidth(2.6f);
         p.setStyle(Paint.Style.STROKE);
 
@@ -1377,20 +1463,20 @@ public class LauncherCanvasView extends View {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(2f);
-        p.setColor(Color.rgb(80, 90, 105));
+        p.setColor(iconLineColor());
         RectF body = new RectF(x, y, x + 32f, y + 16f);
         c.drawRoundRect(body, 3f, 3f, p);
         c.drawRect(x + 34f, y + 5f, x + 38f, y + 11f, p);
 
         Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
-        fill.setColor(Color.rgb(80, 210, 95));
+        fill.setColor(greenColor());
         fill.setStyle(Paint.Style.FILL);
         c.drawRoundRect(new RectF(x + 3f, y + 3f, x + 25f, y + 13f), 2f, 2f, fill);
     }
 
     private void drawSignalStaticIcon(Canvas c, float x, float y) {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setColor(Color.rgb(80, 90, 105));
+        p.setColor(iconLineColor());
         p.setStyle(Paint.Style.FILL);
         c.drawRect(x, y + 20f, x + 5f, y + 27f, p);
         c.drawRect(x + 9f, y + 14f, x + 14f, y + 27f, p);
@@ -1416,6 +1502,25 @@ public class LauncherCanvasView extends View {
         float left = dst.left + (dw - rw) / 2f;
         float top = dst.top + (dh - rh) / 2f;
         c.drawBitmap(bitmap, null, new RectF(left, top, left + rw, top + rh), bitmapPaint);
+    }
+
+    private void drawBitmapTintFitCenter(Canvas c, Bitmap bitmap, RectF dst, int tintColor) {
+        if (bitmap == null) {
+            return;
+        }
+        float bw = bitmap.getWidth();
+        float bh = bitmap.getHeight();
+        float dw = dst.width();
+        float dh = dst.height();
+        float scale = Math.min(dw / bw, dh / bh);
+        float rw = bw * scale;
+        float rh = bh * scale;
+        float left = dst.left + (dw - rw) / 2f;
+        float top = dst.top + (dh - rh) / 2f;
+
+        Paint tintPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        tintPaint.setColorFilter(new PorterDuffColorFilter(tintColor, PorterDuff.Mode.SRC_IN));
+        c.drawBitmap(bitmap, null, new RectF(left, top, left + rw, top + rh), tintPaint);
     }
 
     private void drawRoundedBitmap(Canvas c, Bitmap bitmap, RectF dst, float radius) {
@@ -1466,7 +1571,7 @@ public class LauncherCanvasView extends View {
         c.drawText("应用抽屉", pageCard.left + 46f, pageCard.top + 58f, titlePaint);
 
         subTextPaint.setTextSize(20f);
-        subTextPaint.setColor(Color.rgb(95, 95, 95));
+        subTextPaint.setColor(mutedTextColor());
         c.drawText("平板式 " + rows + "×" + columns + " 网格 · 左右滑动翻页 · 方向键选择 · 回车打开", pageCard.left + 46f, pageCard.top + 94f, subTextPaint);
 
         float gridLeft = pageCard.left + 56f;
@@ -1509,12 +1614,12 @@ public class LauncherCanvasView extends View {
     private void drawAppDrawerLoadingOrEmpty(Canvas c, float gridLeft, float gridTop, float gridRight, float gridBottom) {
         subTextPaint.setTextAlign(Paint.Align.CENTER);
         subTextPaint.setTextSize(26f);
-        subTextPaint.setColor(Color.rgb(90, 90, 90));
+        subTextPaint.setColor(mutedTextColor());
         String text = appListLoading ? "应用列表加载中…" : "暂无可显示应用";
         c.drawText(text, (gridLeft + gridRight) / 2f, (gridTop + gridBottom) / 2f - 10f, subTextPaint);
 
         subTextPaint.setTextSize(18f);
-        subTextPaint.setColor(Color.rgb(130, 130, 130));
+        subTextPaint.setColor(mutedTextColor());
         String sub = appListLoading ? "首次加载会在后台扫描应用，不会卡住主界面" : "可到设置里检查隐藏应用列表";
         c.drawText(sub, (gridLeft + gridRight) / 2f, (gridTop + gridBottom) / 2f + 28f, subTextPaint);
         subTextPaint.setTextAlign(Paint.Align.LEFT);
@@ -1549,13 +1654,13 @@ public class LauncherCanvasView extends View {
         float cellPad = 8f;
         if (selected) {
             Paint selectedCellPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            selectedCellPaint.setColor(Color.rgb(235, 243, 255));
+            selectedCellPaint.setColor(selectedSurfaceColor());
             c.drawRoundRect(new RectF(cellLeft + cellPad, cellTop + cellPad, cellLeft + cellW - cellPad, cellTop + cellH - cellPad), 18f, 18f, selectedCellPaint);
 
             Paint selectedStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             selectedStrokePaint.setStyle(Paint.Style.STROKE);
             selectedStrokePaint.setStrokeWidth(3f);
-            selectedStrokePaint.setColor(Color.rgb(46, 120, 255));
+            selectedStrokePaint.setColor(accentColor());
             c.drawRoundRect(new RectF(cellLeft + cellPad, cellTop + cellPad, cellLeft + cellW - cellPad, cellTop + cellH - cellPad), 18f, 18f, selectedStrokePaint);
         }
 
@@ -1569,7 +1674,7 @@ public class LauncherCanvasView extends View {
         }
 
         Paint labelPaint = smallTextPaint;
-        labelPaint.setColor(Color.rgb(60, 60, 60));
+        labelPaint.setColor(subTextColor());
         labelPaint.setTextSize(textSizeSp);
         labelPaint.setTextAlign(Paint.Align.CENTER);
 
@@ -1580,14 +1685,14 @@ public class LauncherCanvasView extends View {
 
     private void drawPageIndicator(Canvas c, RectF pageCard, int pageCount) {
         if (pageCount <= 1) {
-            smallTextPaint.setColor(Color.rgb(120, 120, 120));
+            smallTextPaint.setColor(mutedTextColor());
             smallTextPaint.setTextSize(18f);
             smallTextPaint.setTextAlign(Paint.Align.RIGHT);
             c.drawText("共 " + cachedApps.size() + " 个应用", pageCard.right - 44f, pageCard.bottom - 18f, smallTextPaint);
             return;
         }
 
-        smallTextPaint.setColor(Color.rgb(120, 120, 120));
+        smallTextPaint.setColor(mutedTextColor());
         smallTextPaint.setTextSize(18f);
         smallTextPaint.setTextAlign(Paint.Align.RIGHT);
         c.drawText("第 " + (appDrawerPage + 1) + " / " + pageCount + " 页 · 共 " + cachedApps.size() + " 个应用", pageCard.right - 44f, pageCard.bottom - 18f, smallTextPaint);
@@ -1597,7 +1702,7 @@ public class LauncherCanvasView extends View {
         float y = pageCard.bottom - 20f;
         float startX = centerX - (pageCount - 1) * 10f;
         for (int i = 0; i < pageCount; i++) {
-            dotPaint.setColor(i == appDrawerPage ? Color.rgb(46, 120, 255) : Color.rgb(190, 195, 205));
+            dotPaint.setColor(i == appDrawerPage ? accentColor() : mutedDotColor());
             c.drawCircle(startX + i * 20f, y, i == appDrawerPage ? 5.5f : 4f, dotPaint);
         }
     }
@@ -1615,7 +1720,7 @@ public class LauncherCanvasView extends View {
         titlePaint.setTextAlign(Paint.Align.LEFT);
         c.drawText("我的", pageCard.left + 46f, pageCard.top + 62f, titlePaint);
 
-        subTextPaint.setColor(Color.rgb(95, 95, 95));
+        subTextPaint.setColor(mutedTextColor());
         subTextPaint.setTextSize(20f);
         c.drawText("车主信息与车机桌面设置", pageCard.left + 46f, pageCard.top + 98f, subTextPaint);
 
@@ -1644,16 +1749,16 @@ public class LauncherCanvasView extends View {
 
         subTextPaint.setTextAlign(Paint.Align.LEFT);
         subTextPaint.setTextSize(22f);
-        subTextPaint.setColor(Color.rgb(35, 35, 35));
+        subTextPaint.setColor(mainTextColor());
         c.drawText(title, left + 28f, top + 46f, subTextPaint);
 
         subTextPaint.setTextSize(20f);
-        subTextPaint.setColor(Color.rgb(90, 90, 90));
+        subTextPaint.setColor(mutedTextColor());
         c.drawText(value, left + 240f, top + 46f, subTextPaint);
 
         subTextPaint.setTextAlign(Paint.Align.RIGHT);
         subTextPaint.setTextSize(18f);
-        subTextPaint.setColor(Color.rgb(46, 120, 255));
+        subTextPaint.setColor(accentColor());
         c.drawText(action, right - 28f, top + 46f, subTextPaint);
         subTextPaint.setTextAlign(Paint.Align.LEFT);
     }
@@ -1669,9 +1774,19 @@ public class LauncherCanvasView extends View {
         RectF selectedRect = new RectF(0f, y - gap / 2f, selectedBtnW, y + btnH + gap / 2f);
         boolean active = index == activeIndex;
 
-        if (active && selectedBg != null) {
-            // 选中背景按用户要求直接拉伸到整列宽度，避免右侧留白。
-            c.drawBitmap(selectedBg, null, selectedRect, bitmapPaint);
+        if (active) {
+            if (isNightMode()) {
+                Paint selectedPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                selectedPaint.setColor(selectedSurfaceColor());
+                c.drawRect(selectedRect, selectedPaint);
+
+                Paint barPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+                barPaint.setColor(accentColor());
+                c.drawRect(selectedRect.left, selectedRect.top, selectedRect.left + 6f, selectedRect.bottom, barPaint);
+            } else if (selectedBg != null) {
+                // 选中背景按用户要求直接拉伸到整列宽度，避免右侧留白。
+                c.drawBitmap(selectedBg, null, selectedRect, bitmapPaint);
+            }
         }
 
         if (hardwareFocusVisible && focusArea == 0 && sidebarFocusIndex == index) {
@@ -1683,7 +1798,9 @@ public class LauncherCanvasView extends View {
             float iconY = y + (btnH - iconSize) / 2f;
             RectF dst = new RectF(iconX, iconY, iconX + iconSize, iconY + iconSize);
             if (active) {
-                iconPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(46, 120, 255), PorterDuff.Mode.SRC_IN));
+                iconPaint.setColorFilter(new PorterDuffColorFilter(accentColor(), PorterDuff.Mode.SRC_IN));
+            } else if (isNightMode()) {
+                iconPaint.setColorFilter(new PorterDuffColorFilter(mainTextColor(), PorterDuff.Mode.SRC_IN));
             } else {
                 iconPaint.setColorFilter(null);
             }
@@ -2471,7 +2588,7 @@ public class LauncherCanvasView extends View {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(4f);
-        p.setColor(Color.rgb(46, 120, 255));
+        p.setColor(accentColor());
         RectF rr = new RectF(r.left + 3f, r.top + 3f, r.right - 3f, r.bottom - 3f);
         c.drawRoundRect(rr, 18f, 18f, p);
     }
