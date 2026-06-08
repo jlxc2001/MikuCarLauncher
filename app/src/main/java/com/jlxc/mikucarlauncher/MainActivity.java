@@ -77,6 +77,14 @@ public class MainActivity extends Activity {
                 updateCard1WidgetVisibility();
             }
         });
+        launcherView.setOnLive2DClickListener(new LauncherCanvasView.OnLive2DClickListener() {
+            @Override
+            public void onLive2DClick() {
+                if (live2DView != null && live2DView.getVisibility() == View.VISIBLE) {
+                    live2DView.playNextMotion();
+                }
+            }
+        });
 
         rootLayout.addView(launcherView, new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,

@@ -61,7 +61,10 @@
   let rawModelWidth = 1;
   let rawModelHeight = 1;
   let motionGroups = [];
+  let motionList = [];
+  let expressionList = [];
   let motionTimer = null;
+  let nextMotionIndex = 0;
   let isMotionPlaying = false;
 
   function showMsg(text) {
@@ -106,7 +109,6 @@
   }
 
   function targetModelHeightPx() {
-    // scale=1 时，人物大约占 390px 设计高度；捏合 scale 会直接改变模型大小。
     return 390 * stageScaleY() * userScale;
   }
 
@@ -138,47 +140,52 @@
     applyLayout();
   };
 
+  window.__mikuLive2DNextMotion = function() {
+    playNextMotionAndExpression();
+  };
+
   function pickRandom(arr) {
     if (!arr || arr.length === 0) return null;
     return arr[Math.floor(Math.random() * arr.length)];
   }
 
-  function extractMotionGroups() {
-    const groups = [];
+  function getModelJson() {
     try {
       const settings = model && model.internalModel && model.internalModel.settings;
-      const json =
-        (settings && settings.json) ||
-        (settings && settings._json) ||
-        (settings && settings._object) ||
-        null;
+      return (settings && settings.json) ||
+             (settings && settings._json) ||
+             (settings && settings._object) ||
+             null;
+    } catch (e) {
+      return null;
+    }
+  }
 
-      const candidates = [];
+  function getMotionCandidates() {
+    const settings = model && model.internalModel && model.internalModel.settings;
+    const json = getModelJson();
+    const candidates = [];
+    try {
       if (settings && settings.motions) candidates.push(settings.motions);
       if (json && json.FileReferences && json.FileReferences.Motions) candidates.push(json.FileReferences.Motions);
       if (json && json.motions) candidates.push(json.motions);
+    } catch (e) {}
+    return candidates;
+  }
 
-      for (const motions of candidates) {
-        for (const key in motions) {
-          if (!Object.prototype.hasOwnProperty.call(motions, key)) continue;
-          const value = motions[key];
+  function extractMotionGroups() {
+    const groups = [];
+    const candidates = getMotionCandidates();
 
-          // value 可能是数组，也可能是对象；只要有 motion 文件就纳入随机动作组。
-          let count = 0;
-          if (Array.isArray(value)) {
-            count = value.length;
-          } else if (value && typeof value === "object") {
-            count = Object.keys(value).length;
-          } else if (typeof value === "string") {
-            count = 1;
-          }
-
-          if (count > 0 && groups.indexOf(key) < 0) {
-            groups.push(key);
-          }
+    for (const motions of candidates) {
+      for (const key in motions) {
+        if (!Object.prototype.hasOwnProperty.call(motions, key)) continue;
+        const count = motionCountFromValue(motions[key]);
+        if (count > 0 && groups.indexOf(key) < 0) {
+          groups.push(key);
         }
       }
-    } catch (e) {}
+    }
 
     const preferred = ["Idle", "idle", "Idling", "idling", "TapBody", "tap_body", "Tap", "tap", "Flick", "flick"];
     const result = [];
@@ -191,29 +198,88 @@
     return result;
   }
 
+  function motionCountFromValue(value) {
+    if (Array.isArray(value)) return Math.max(0, value.length);
+    if (value && typeof value === "object") return Math.max(0, Object.keys(value).length);
+    if (typeof value === "string") return 1;
+    return 0;
+  }
+
   function motionCountInGroup(group) {
+    const candidates = getMotionCandidates();
+    for (const motions of candidates) {
+      if (!motions || !Object.prototype.hasOwnProperty.call(motions, group)) continue;
+      return Math.max(1, motionCountFromValue(motions[group]));
+    }
+    return 1;
+  }
+
+  function buildMotionList() {
+    const list = [];
+    motionGroups = extractMotionGroups();
+
+    for (const group of motionGroups) {
+      const count = motionCountInGroup(group);
+      for (let i = 0; i < count; i++) {
+        list.push({ group: group, index: i });
+      }
+    }
+
+    // 洗牌，点击“下一个动作”时不会机械固定顺序。
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const t = list[i];
+      list[i] = list[j];
+      list[j] = t;
+    }
+
+    motionList = list;
+    nextMotionIndex = 0;
+  }
+
+  function extractExpressions() {
+    const result = [];
+    const json = getModelJson();
+    const settings = model && model.internalModel && model.internalModel.settings;
+
     try {
-      const settings = model && model.internalModel && model.internalModel.settings;
-      const json =
-        (settings && settings.json) ||
-        (settings && settings._json) ||
-        (settings && settings._object) ||
-        null;
-
       const candidates = [];
-      if (settings && settings.motions) candidates.push(settings.motions);
-      if (json && json.FileReferences && json.FileReferences.Motions) candidates.push(json.FileReferences.Motions);
-      if (json && json.motions) candidates.push(json.motions);
+      if (settings && settings.expressions) candidates.push(settings.expressions);
+      if (json && json.FileReferences && json.FileReferences.Expressions) candidates.push(json.FileReferences.Expressions);
+      if (json && json.expressions) candidates.push(json.expressions);
 
-      for (const motions of candidates) {
-        if (!motions || !Object.prototype.hasOwnProperty.call(motions, group)) continue;
-        const value = motions[group];
-        if (Array.isArray(value)) return Math.max(1, value.length);
-        if (value && typeof value === "object") return Math.max(1, Object.keys(value).length);
-        if (typeof value === "string") return 1;
+      for (const expressions of candidates) {
+        if (Array.isArray(expressions)) {
+          for (let i = 0; i < expressions.length; i++) {
+            const item = expressions[i];
+            if (item && typeof item === "object") {
+              const name = item.Name || item.name || item.File || item.file || String(i);
+              result.push({ index: i, name: name });
+            } else {
+              result.push({ index: i, name: String(i) });
+            }
+          }
+        } else if (expressions && typeof expressions === "object") {
+          let idx = 0;
+          for (const key in expressions) {
+            if (!Object.prototype.hasOwnProperty.call(expressions, key)) continue;
+            result.push({ index: idx, name: key });
+            idx++;
+          }
+        }
       }
     } catch (e) {}
-    return 1;
+
+    const dedup = [];
+    const seen = {};
+    for (const e of result) {
+      const k = String(e.name) + "#" + String(e.index);
+      if (!seen[k]) {
+        seen[k] = true;
+        dedup.push(e);
+      }
+    }
+    return dedup;
   }
 
   async function tryStartMotion(group, index) {
@@ -231,6 +297,14 @@
 
     try {
       const manager = model.internalModel && model.internalModel.motionManager;
+      if (manager && manager.startMotion) {
+        manager.startMotion(group, index || 0, 2);
+        return true;
+      }
+    } catch (e) {}
+
+    try {
+      const manager = model.internalModel && model.internalModel.motionManager;
       if (manager && manager.startRandomMotion) {
         manager.startRandomMotion(group, 2);
         return true;
@@ -240,33 +314,102 @@
     return false;
   }
 
-  async function playRandomMotionOnce() {
-    if (!model || isMotionPlaying || motionGroups.length === 0) {
+  async function applyRandomExpression() {
+    if (!model || expressionList.length === 0) {
       return false;
     }
 
-    const group = pickRandom(motionGroups);
-    const count = motionCountInGroup(group);
-    const index = Math.floor(Math.random() * Math.max(1, count));
+    const exp = pickRandom(expressionList);
+    if (!exp) return false;
+
+    try {
+      if (typeof model.expression === "function") {
+        // pixi-live2d-display 支持按索引/名称触发表情时优先用它。
+        await model.expression(exp.index);
+        return true;
+      }
+    } catch (e) {}
+
+    try {
+      if (typeof model.expression === "function") {
+        await model.expression(exp.name);
+        return true;
+      }
+    } catch (e) {}
+
+    try {
+      const manager = model.internalModel && model.internalModel.motionManager;
+      const expressionManager = manager && manager.expressionManager;
+      if (expressionManager && expressionManager.setExpression) {
+        expressionManager.setExpression(exp.index);
+        return true;
+      }
+    } catch (e) {}
+
+    try {
+      const manager = model.internalModel && model.internalModel.motionManager;
+      const expressionManager = manager && manager.expressionManager;
+      if (expressionManager && expressionManager.setRandomExpression) {
+        expressionManager.setRandomExpression();
+        return true;
+      }
+    } catch (e) {}
+
+    return false;
+  }
+
+  async function playMotionItem(item) {
+    if (!item || isMotionPlaying) {
+      return false;
+    }
 
     isMotionPlaying = true;
-    const ok = await tryStartMotion(group, index);
+    const ok = await tryStartMotion(item.group, item.index);
     isMotionPlaying = false;
-
     return ok;
   }
 
-  function startRandomMotionLoop() {
-    motionGroups = extractMotionGroups();
+  async function playRandomMotionOnce() {
+    if (!model || motionList.length === 0) {
+      return false;
+    }
 
-    if (!motionGroups || motionGroups.length === 0) {
-      console.log("No Live2D motion groups found. Model will remain static.");
+    const item = pickRandom(motionList);
+    const ok = await playMotionItem(item);
+    await applyRandomExpression();
+    return ok;
+  }
+
+  async function playNextMotionAndExpression() {
+    if (!model || motionList.length === 0) {
+      await applyRandomExpression();
       return;
     }
 
-    console.log("Live2D motion groups:", motionGroups.join(", "));
+    if (nextMotionIndex >= motionList.length) {
+      buildMotionList();
+    }
 
-    // 先播一次模型自带动作。
+    const item = motionList[nextMotionIndex];
+    nextMotionIndex++;
+    await playMotionItem(item);
+    await applyRandomExpression();
+  }
+
+  function startRandomMotionLoop() {
+    buildMotionList();
+    expressionList = extractExpressions();
+
+    console.log("Live2D motion groups:", motionGroups.join(", "));
+    console.log("Live2D motion count:", motionList.length);
+    console.log("Live2D expression count:", expressionList.length);
+
+    if (motionList.length === 0) {
+      console.log("No Live2D motions found. Model will remain static unless expressions are available.");
+      return;
+    }
+
+    // 先播一次模型动作。
     playRandomMotionOnce();
 
     function scheduleNext() {
@@ -274,7 +417,6 @@
         clearTimeout(motionTimer);
       }
 
-      // 随机 6~12 秒播放一次，避免太机械。
       const delay = 6000 + Math.floor(Math.random() * 6000);
       motionTimer = setTimeout(async function() {
         await playRandomMotionOnce();
@@ -298,7 +440,6 @@
       "https://unpkg.com/pixi.js@6.5.10/dist/browser/pixi.min.js"
     ]);
 
-    // Cubism 2.1 运行库是可选项；没有它时，Cubism 3/4 模型仍然可以继续尝试加载。
     try {
       await loadScriptAny([
         "file:///android_asset/live2d/runtime/live2d.min.js",

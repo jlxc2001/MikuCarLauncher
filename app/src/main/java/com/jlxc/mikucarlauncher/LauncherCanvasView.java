@@ -51,12 +51,21 @@ public class LauncherCanvasView extends View {
         void onMenuClick(int index, String label);
     }
 
+    public interface OnLive2DClickListener {
+        void onLive2DClick();
+    }
+
     private static final String PREFS = MainActivity.PREFS;
 
     private OnMenuClickListener menuClickListener;
+    private OnLive2DClickListener live2DClickListener;
 
     public void setOnMenuClickListener(OnMenuClickListener listener) {
         this.menuClickListener = listener;
+    }
+
+    public void setOnLive2DClickListener(OnLive2DClickListener listener) {
+        this.live2DClickListener = listener;
     }
 
     public int getActiveIndex() {
@@ -1976,6 +1985,18 @@ public class LauncherCanvasView extends View {
                     getContext().startActivity(new Intent(getContext(), WeatherSettingsActivity.class));
                     return true;
                 }
+
+                // Live2D 位于背景之上、卡片之下，CanvasView 会吃掉触摸事件。
+                // 因此在首页中间空白的模型区域里做一次点击转发，用于“点击人物切换下一个动作”。
+                if (isLive2DClickArea(x, y)
+                        && Math.abs(x - downDesignX) < 36f
+                        && Math.abs(y - downDesignY) < 36f
+                        && System.currentTimeMillis() - downTimeMs < 450L) {
+                    if (live2DClickListener != null) {
+                        live2DClickListener.onLive2DClick();
+                        return true;
+                    }
+                }
             }
 
             if (activeIndex == 5) {
@@ -1997,6 +2018,11 @@ public class LauncherCanvasView extends View {
             }
         }
         return true;
+    }
+
+    private boolean isLive2DClickArea(float x, float y) {
+        // 覆盖首页中间空白区和建议模型区域，但不覆盖任何已确认功能卡片。
+        return x >= 1145f && x <= 1965f && y >= 120f && y <= 545f;
     }
 
     private void handleAppDrawerTouch(float x, float y, long durationMs) {

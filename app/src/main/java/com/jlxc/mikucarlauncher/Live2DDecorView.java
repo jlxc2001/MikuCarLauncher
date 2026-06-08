@@ -52,6 +52,7 @@ public class Live2DDecorView extends FrameLayout {
     private float startCenterY;
     private float startScale;
     private float startDist;
+    // 0=idle, 1=single finger drag, 2=pinch zoom, 3=pinch ended but still one finger remains; ignore move until all fingers lift.
     private int pointerMode = 0;
 
     public Live2DDecorView(Context context) {
@@ -162,6 +163,14 @@ public class Live2DDecorView extends FrameLayout {
         }
     }
 
+    public void playNextMotion() {
+        try {
+            webView.evaluateJavascript("window.__mikuLive2DNextMotion && window.__mikuLive2DNextMotion();", null);
+        } catch (Throwable ignored) {
+        }
+    }
+
+
     private void migrateOldFramePrefsIfNeeded(SharedPreferences sp) {
         if (sp.contains(PREF_CENTER_X) && sp.contains(PREF_CENTER_Y)) {
             return;
@@ -218,7 +227,7 @@ public class Live2DDecorView extends FrameLayout {
                     sendTransformToJs(startCenterX, startCenterY, nextScale);
                     saveTransform(startCenterX, startCenterY, nextScale);
                 }
-            } else {
+            } else if (pointerMode == 1) {
                 float sx = getWidth() / DESIGN_W;
                 float sy = getHeight() / DESIGN_H;
                 if (sx <= 0f) sx = 1f;
@@ -228,12 +237,17 @@ public class Live2DDecorView extends FrameLayout {
                 float nextY = clampFloat(startCenterY + (event.getRawY() - downRawY) / sy, 0f, DESIGN_H);
                 sendTransformToJs(nextX, nextY, startScale);
                 saveTransform(nextX, nextY, startScale);
+            } else {
+                // pointerMode == 3：双指缩放后只松开了其中一根手指。
+                // 这里必须忽略剩余手指的移动，否则人物会被慢松手的那根手指拖走。
             }
             return true;
         }
 
         if (action == MotionEvent.ACTION_POINTER_UP) {
-            pointerMode = event.getPointerCount() <= 2 ? 1 : pointerMode;
+            if (pointerMode == 2) {
+                pointerMode = 3;
+            }
             return true;
         }
 
