@@ -61,8 +61,8 @@ public class Live2DSettingsActivity extends Activity {
                 + "点击“选择 Live2D 模型文件夹”，选择包含 model3.json / model.json 的模型文件夹即可。"
                 + "本软件会把模型文件夹复制到应用内部目录，避免 WebView 读取 content:// 或外部存储时显示失败。\\n"
                 + "位置和大小不用输入数值，点击“拖动/捏合调整位置大小”后直接用手操作。\\n"
-                + "v53 会在模型无动作时自动注入通用待机、点头、微笑动作；无表情时自动注入微笑、眨眼、惊讶表情。"
-                + "点击人物会切换下一个动作，并随机切换表情。");
+                + "v55 会在模型无动作时自动注入通用待机、点头、微笑、眨眼动作；无表情时自动注入微笑、眨眼、惊讶表情。"
+                + "显示时会额外加入随机眨眼和类似 ViewerEX 的参数级默认待机效果，点击人物会切换下一个动作并随机切换表情。");
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         hint.setTextColor(Color.rgb(82, 82, 82));
         hint.setGravity(Gravity.CENTER_VERTICAL);

@@ -67,6 +67,21 @@
   let nextMotionIndex = 0;
   let isMotionPlaying = false;
 
+  // v54：只给 Live2D 模型加遮罩，不遮挡背景、不改变底部卡片形状。
+  const live2DClipBottomDesignY = 546.5;
+  let live2DMask = null;
+
+  // v55：默认待机效果不再用整体缩放/漂浮，而是尽量模拟 ViewerEX 那种参数级待机：
+  // 眼睛随机眨眼、头部轻微看向、身体小幅摆动；只在模型无自带动作/使用注入默认动作时启用。
+  let elapsedSec = 0;
+  let nextBlinkSec = 1.2 + Math.random() * 2.5;
+  let blinkStartSec = -1;
+  let defaultIdleEnabled = false;
+  let usingDefaultMotions = false;
+  let defaultActionKind = "";
+  let defaultActionStartSec = -1;
+  let defaultActionDurationSec = 0;
+
   function showMsg(text) {
     console.log(text);
     msg.textContent = text;
@@ -115,8 +130,6 @@
   function applyLayout() {
     if (!model) return;
 
-    const sx = stageScaleX();
-    const sy = stageScaleY();
     const targetHeight = targetModelHeightPx();
     let baseScale = targetHeight / Math.max(1, rawModelHeight);
 
@@ -125,8 +138,25 @@
     }
 
     model.scale.set(baseScale);
-    model.x = centerX * sx;
-    model.y = centerY * sy;
+    model.x = centerX * stageScaleX();
+    model.y = centerY * stageScaleY();
+  }
+
+  function updateLive2DMask() {
+    if (!app || !model || !window.PIXI) return;
+
+    if (!live2DMask) {
+      live2DMask = new PIXI.Graphics();
+      app.stage.addChild(live2DMask);
+      model.mask = live2DMask;
+    }
+
+    const clipBottom = live2DClipBottomDesignY * stageScaleY();
+
+    live2DMask.clear();
+    live2DMask.beginFill(0xffffff, 1);
+    live2DMask.drawRect(0, 0, window.innerWidth, Math.max(0, clipBottom));
+    live2DMask.endFill();
   }
 
   window.__mikuLive2DUpdate = function(cx, cy, scale) {
@@ -138,6 +168,7 @@
 
   window.__mikuLive2DRelayout = function() {
     applyLayout();
+    updateLive2DMask();
   };
 
   window.__mikuLive2DNextMotion = function() {
@@ -147,6 +178,10 @@
   function pickRandom(arr) {
     if (!arr || arr.length === 0) return null;
     return arr[Math.floor(Math.random() * arr.length)];
+  }
+
+  function clamp(v, min, max) {
+    return Math.max(min, Math.min(max, v));
   }
 
   function getModelJson() {
@@ -159,6 +194,60 @@
     } catch (e) {
       return null;
     }
+  }
+
+  function getCoreModel() {
+    try {
+      return model && model.internalModel && model.internalModel.coreModel;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function setParam(id, value) {
+    const core = getCoreModel();
+    if (!core) return false;
+
+    try {
+      if (typeof core.setParameterValueById === "function") {
+        core.setParameterValueById(id, value);
+        return true;
+      }
+    } catch (e) {}
+
+    try {
+      if (typeof core.addParameterValueById === "function") {
+        core.addParameterValueById(id, value);
+        return true;
+      }
+    } catch (e) {}
+
+    try {
+      if (typeof core.getParameterIndex === "function" && typeof core.setParameterValueByIndex === "function") {
+        const idx = core.getParameterIndex(id);
+        if (idx >= 0) {
+          core.setParameterValueByIndex(idx, value);
+          return true;
+        }
+      }
+    } catch (e) {}
+
+    return false;
+  }
+
+  function addParam(id, value) {
+    const core = getCoreModel();
+    if (!core) return false;
+
+    try {
+      if (typeof core.addParameterValueById === "function") {
+        core.addParameterValueById(id, value);
+        return true;
+      }
+    } catch (e) {}
+
+    // 没有 add 接口时退化为 set。
+    return setParam(id, value);
   }
 
   function getMotionCandidates() {
@@ -214,6 +303,42 @@
     return 1;
   }
 
+  function valueHasDefaultMotionFile(value) {
+    if (!value) return false;
+    if (typeof value === "string") {
+      return value.indexOf("motions_default") >= 0 || value.indexOf("miku_default") >= 0;
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (valueHasDefaultMotionFile(item)) return true;
+      }
+      return false;
+    }
+    if (typeof value === "object") {
+      for (const k in value) {
+        if (!Object.prototype.hasOwnProperty.call(value, k)) continue;
+        if (k === "File" || k === "file") {
+          if (valueHasDefaultMotionFile(String(value[k]))) return true;
+        }
+        if (valueHasDefaultMotionFile(value[k])) return true;
+      }
+    }
+    return false;
+  }
+
+  function containsDefaultMotionFiles() {
+    const candidates = getMotionCandidates();
+    for (const motions of candidates) {
+      for (const key in motions) {
+        if (!Object.prototype.hasOwnProperty.call(motions, key)) continue;
+        if (valueHasDefaultMotionFile(motions[key])) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
   function buildMotionList() {
     const list = [];
     motionGroups = extractMotionGroups();
@@ -225,7 +350,6 @@
       }
     }
 
-    // 洗牌，点击“下一个动作”时不会机械固定顺序。
     for (let i = list.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       const t = list[i];
@@ -324,7 +448,6 @@
 
     try {
       if (typeof model.expression === "function") {
-        // pixi-live2d-display 支持按索引/名称触发表情时优先用它。
         await model.expression(exp.index);
         return true;
       }
@@ -377,11 +500,27 @@
     const item = pickRandom(motionList);
     const ok = await playMotionItem(item);
     await applyRandomExpression();
+    if (usingDefaultMotions) {
+      triggerDefaultAction(pickRandom(["smile", "nod", "look"]));
+    }
     return ok;
   }
 
   async function playNextMotionAndExpression() {
-    if (!model || motionList.length === 0) {
+    if (!model) {
+      return;
+    }
+
+    if (usingDefaultMotions) {
+      const sequence = ["smile", "nod", "look", "blink"];
+      triggerDefaultAction(sequence[nextMotionIndex % sequence.length]);
+      nextMotionIndex++;
+      await applyRandomExpression();
+      return;
+    }
+
+    if (motionList.length === 0) {
+      triggerDefaultAction(pickRandom(["smile", "nod", "look", "blink"]));
       await applyRandomExpression();
       return;
     }
@@ -396,30 +535,142 @@
     await applyRandomExpression();
   }
 
+  function triggerDefaultAction(kind) {
+    defaultActionKind = kind || "smile";
+    defaultActionStartSec = elapsedSec;
+
+    if (defaultActionKind === "blink") {
+      blinkStartSec = elapsedSec;
+      defaultActionDurationSec = 0.55;
+    } else if (defaultActionKind === "nod") {
+      defaultActionDurationSec = 1.9;
+    } else if (defaultActionKind === "look") {
+      defaultActionDurationSec = 2.4;
+    } else {
+      defaultActionDurationSec = 2.2;
+    }
+  }
+
+  function smooth01(x) {
+    x = clamp(x, 0, 1);
+    return x * x * (3 - 2 * x);
+  }
+
+  function pulse(progress) {
+    progress = clamp(progress, 0, 1);
+    return Math.sin(progress * Math.PI);
+  }
+
+  function updateBlink() {
+    if (elapsedSec >= nextBlinkSec && blinkStartSec < 0) {
+      blinkStartSec = elapsedSec;
+    }
+
+    if (blinkStartSec >= 0) {
+      const d = elapsedSec - blinkStartSec;
+      let open = 1;
+
+      if (d < 0.055) {
+        open = 1 - d / 0.055;
+      } else if (d < 0.145) {
+        open = 0;
+      } else if (d < 0.25) {
+        open = (d - 0.145) / 0.105;
+      } else {
+        blinkStartSec = -1;
+        nextBlinkSec = elapsedSec + 2.4 + Math.random() * 4.2;
+        open = 1;
+      }
+
+      open = clamp(open, 0, 1);
+      setParam("ParamEyeLOpen", open);
+      setParam("ParamEyeROpen", open);
+    }
+  }
+
+  function updateDefaultIdle() {
+    if (!defaultIdleEnabled) {
+      updateBlink();
+      return;
+    }
+
+    const t = elapsedSec;
+    let angleX = Math.sin(t * 0.65) * 5.5 + Math.sin(t * 0.19) * 2.0;
+    let angleY = Math.sin(t * 0.48 + 1.7) * 2.8;
+    let angleZ = Math.sin(t * 0.42 + 0.4) * 2.2;
+    let bodyX = Math.sin(t * 0.52 + 1.1) * 3.2;
+    let breath = 0.5 + Math.sin(t * 1.05) * 0.35;
+
+    if (defaultActionStartSec >= 0) {
+      const p = clamp((elapsedSec - defaultActionStartSec) / Math.max(0.01, defaultActionDurationSec), 0, 1);
+      const e = pulse(p);
+
+      if (defaultActionKind === "nod") {
+        angleY += Math.sin(p * Math.PI * 4) * 8 * (1 - p);
+        bodyX += Math.sin(p * Math.PI * 2) * 4 * (1 - p);
+      } else if (defaultActionKind === "look") {
+        angleX += Math.sin(p * Math.PI * 2) * 11 * (1 - p * 0.25);
+        angleZ += Math.sin(p * Math.PI * 2) * 3;
+      } else if (defaultActionKind === "smile") {
+        setParam("ParamMouthForm", 0.8 * e);
+        setParam("ParamMouthOpenY", 0.18 + 0.16 * e);
+        setParam("ParamEyeSmile", 0.75 * e);
+      }
+
+      if (p >= 1) {
+        defaultActionStartSec = -1;
+        defaultActionKind = "";
+      }
+    }
+
+    setParam("ParamAngleX", angleX);
+    setParam("ParamAngleY", angleY);
+    setParam("ParamAngleZ", angleZ);
+    setParam("ParamBodyAngleX", bodyX);
+    setParam("ParamBreath", breath);
+
+    // 常见模型的头发/服装辅助参数；没有这些参数时会自动忽略。
+    addParam("ParamHairFront", Math.sin(t * 1.15) * 0.08);
+    addParam("ParamHairBack", Math.sin(t * 0.92 + 1.3) * 0.08);
+    addParam("ParamBustX", Math.sin(t * 0.55) * 0.02);
+    addParam("ParamBustY", Math.sin(t * 0.74) * 0.02);
+
+    updateBlink();
+  }
+
   function startRandomMotionLoop() {
     buildMotionList();
     expressionList = extractExpressions();
+    usingDefaultMotions = containsDefaultMotionFiles();
+    defaultIdleEnabled = usingDefaultMotions || motionList.length === 0;
 
     console.log("Live2D motion groups:", motionGroups.join(", "));
     console.log("Live2D motion count:", motionList.length);
     console.log("Live2D expression count:", expressionList.length);
+    console.log("Live2D using default motions:", usingDefaultMotions);
 
-    if (motionList.length === 0) {
-      console.log("No Live2D motions found. Model will remain static unless expressions are available.");
-      return;
+    if (motionList.length > 0 && !usingDefaultMotions) {
+      playRandomMotionOnce();
+    } else {
+      triggerDefaultAction("smile");
     }
-
-    // 先播一次模型动作。
-    playRandomMotionOnce();
 
     function scheduleNext() {
       if (motionTimer) {
         clearTimeout(motionTimer);
       }
 
-      const delay = 6000 + Math.floor(Math.random() * 6000);
+      const delay = defaultIdleEnabled
+              ? (8500 + Math.floor(Math.random() * 6500))
+              : (6000 + Math.floor(Math.random() * 6000));
+
       motionTimer = setTimeout(async function() {
-        await playRandomMotionOnce();
+        if (defaultIdleEnabled) {
+          triggerDefaultAction(pickRandom(["smile", "nod", "look", "blink"]));
+          await applyRandomExpression();
+        } else {
+          await playRandomMotionOnce();
+        }
         scheduleNext();
       }, delay);
     }
@@ -500,12 +751,21 @@
     rawModelHeight = Math.max(1, model.height || 1);
 
     applyLayout();
+    updateLive2DMask();
+
     window.addEventListener("resize", function() {
       app.renderer.resize(window.innerWidth, window.innerHeight);
       applyLayout();
+      updateLive2DMask();
     });
 
     startRandomMotionLoop();
+
+    app.ticker.add(function(delta) {
+      elapsedSec += delta / 60.0;
+      // 放在模型自身 update 后做参数覆盖，这样眨眼/默认待机更容易生效。
+      updateDefaultIdle();
+    });
   }
 
   main().catch(function(e) {

@@ -223,6 +223,7 @@ public final class Live2DModelImporter {
             }
 
             writeText(new File(motionDir, "miku_default_idle.motion3.json"), defaultIdleMotionJson());
+            writeText(new File(motionDir, "miku_default_blink.motion3.json"), defaultBlinkMotionJson());
             writeText(new File(motionDir, "miku_default_smile.motion3.json"), defaultSmileMotionJson());
             writeText(new File(motionDir, "miku_default_nod.motion3.json"), defaultNodMotionJson());
 
@@ -241,18 +242,20 @@ public final class Live2DModelImporter {
 
             JSONArray idle = new JSONArray();
             idle.put(new JSONObject().put("File", "motions_default/miku_default_idle.motion3.json"));
+            idle.put(new JSONObject().put("File", "motions_default/miku_default_blink.motion3.json"));
             idle.put(new JSONObject().put("File", "motions_default/miku_default_nod.motion3.json"));
             idle.put(new JSONObject().put("File", "motions_default/miku_default_smile.motion3.json"));
 
             JSONArray tapBody = new JSONArray();
             tapBody.put(new JSONObject().put("File", "motions_default/miku_default_smile.motion3.json"));
             tapBody.put(new JSONObject().put("File", "motions_default/miku_default_nod.motion3.json"));
+            tapBody.put(new JSONObject().put("File", "motions_default/miku_default_blink.motion3.json"));
 
             motions.put("Idle", idle);
             motions.put("TapBody", tapBody);
 
             writeText(modelFile, root.toString(2));
-            return 3;
+            return 4;
         } catch (Throwable ignored) {
             return 0;
         }
@@ -343,6 +346,15 @@ public final class Live2DModelImporter {
                 curve("ParamEyeLOpen", new double[][]{{0, 1}, {2.0, 1}, {2.08, 0}, {2.18, 1}, {5.0, 1}}),
                 curve("ParamEyeROpen", new double[][]{{0, 1}, {2.0, 1}, {2.08, 0}, {2.18, 1}, {5.0, 1}}),
                 curve("ParamMouthOpenY", new double[][]{{0, 0.1}, {2.5, 0.22}, {5.0, 0.1}})
+        });
+    }
+
+    private static String defaultBlinkMotionJson() {
+        return motionJson(1.8, false, new String[]{
+                curve("ParamEyeLOpen", new double[][]{{0, 1}, {0.35, 1}, {0.42, 0}, {0.54, 1}, {1.8, 1}}),
+                curve("ParamEyeROpen", new double[][]{{0, 1}, {0.35, 1}, {0.42, 0}, {0.54, 1}, {1.8, 1}}),
+                curve("ParamAngleX", new double[][]{{0, 0}, {0.9, 2}, {1.8, 0}}),
+                curve("ParamMouthOpenY", new double[][]{{0, 0.06}, {0.9, 0.12}, {1.8, 0.06}})
         });
     }
 
