@@ -11,6 +11,7 @@ import java.io.InputStream;
 
 public final class Live2DModelImporter {
     public static final String PREF_MODEL_LABEL = "live2d_model_label";
+    public static final String PREF_MOTION_COUNT = "live2d_motion_count";
 
     private Live2DModelImporter() {
     }
@@ -20,12 +21,18 @@ public final class Live2DModelImporter {
         public final String modelPath;
         public final String label;
         public final String message;
+        public final int motionCount;
 
         Result(boolean success, String modelPath, String label, String message) {
+            this(success, modelPath, label, message, 0);
+        }
+
+        Result(boolean success, String modelPath, String label, String message, int motionCount) {
             this.success = success;
             this.modelPath = modelPath;
             this.label = label;
             this.message = message;
+            this.motionCount = motionCount;
         }
     }
 
@@ -53,7 +60,15 @@ public final class Live2DModelImporter {
                 return new Result(false, "", label, "没有在文件夹里找到 model3.json 或 model.json");
             }
 
-            return new Result(true, modelFile.getAbsolutePath(), label, "已导入：" + label);
+            int motionCount = countMotionFiles(outRoot);
+            String message = "已导入：" + label;
+            if (motionCount > 0) {
+                message += "，读取到 " + motionCount + " 个动作文件";
+            } else {
+                message += "，未发现动作文件";
+            }
+
+            return new Result(true, modelFile.getAbsolutePath(), label, message, motionCount);
         } catch (Throwable t) {
             return new Result(false, "", "", "导入失败：" + t.getMessage());
         }
@@ -146,6 +161,31 @@ public final class Live2DModelImporter {
                 }
             }
         }
+    }
+
+    private static int countMotionFiles(File root) {
+        if (root == null || !root.exists()) {
+            return 0;
+        }
+
+        if (root.isFile()) {
+            String name = root.getName().toLowerCase();
+            if (name.endsWith(".motion3.json")
+                    || name.endsWith(".mtn")
+                    || name.endsWith(".motion.json")) {
+                return 1;
+            }
+            return 0;
+        }
+
+        int count = 0;
+        File[] list = root.listFiles();
+        if (list != null) {
+            for (File f : list) {
+                count += countMotionFiles(f);
+            }
+        }
+        return count;
     }
 
     private static File findModelFile(File root) {

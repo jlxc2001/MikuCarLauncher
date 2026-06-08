@@ -60,10 +60,9 @@
   let model = null;
   let rawModelWidth = 1;
   let rawModelHeight = 1;
-  let fallbackMotion = false;
-  let fallbackTime = 0;
-  let lastMotionAt = 0;
-  let idleGroups = [];
+  let motionGroups = [];
+  let motionTimer = null;
+  let isMotionPlaying = false;
 
   function showMsg(text) {
     console.log(text);
@@ -107,11 +106,11 @@
   }
 
   function targetModelHeightPx() {
-    // scale=1 时，人物大约占 390px 设计高度；捏合 scale 会非常明显。
+    // scale=1 时，人物大约占 390px 设计高度；捏合 scale 会直接改变模型大小。
     return 390 * stageScaleY() * userScale;
   }
 
-  function applyLayout(extraScale, extraY) {
+  function applyLayout() {
     if (!model) return;
 
     const sx = stageScaleX();
@@ -123,24 +122,26 @@
       baseScale = 1;
     }
 
-    const breatheScale = extraScale || 1;
-    const breatheY = extraY || 0;
-
-    model.scale.set(baseScale * breatheScale);
+    model.scale.set(baseScale);
     model.x = centerX * sx;
-    model.y = centerY * sy + breatheY * sy;
+    model.y = centerY * sy;
   }
 
   window.__mikuLive2DUpdate = function(cx, cy, scale) {
     centerX = parseFloat(cx) || centerX;
     centerY = parseFloat(cy) || centerY;
     userScale = parseFloat(scale) || userScale;
-    applyLayout(1, 0);
+    applyLayout();
   };
 
   window.__mikuLive2DRelayout = function() {
-    applyLayout(1, 0);
+    applyLayout();
   };
+
+  function pickRandom(arr) {
+    if (!arr || arr.length === 0) return null;
+    return arr[Math.floor(Math.random() * arr.length)];
+  }
 
   function extractMotionGroups() {
     const groups = [];
@@ -159,14 +160,27 @@
 
       for (const motions of candidates) {
         for (const key in motions) {
-          if (Object.prototype.hasOwnProperty.call(motions, key)) {
+          if (!Object.prototype.hasOwnProperty.call(motions, key)) continue;
+          const value = motions[key];
+
+          // value 可能是数组，也可能是对象；只要有 motion 文件就纳入随机动作组。
+          let count = 0;
+          if (Array.isArray(value)) {
+            count = value.length;
+          } else if (value && typeof value === "object") {
+            count = Object.keys(value).length;
+          } else if (typeof value === "string") {
+            count = 1;
+          }
+
+          if (count > 0 && groups.indexOf(key) < 0) {
             groups.push(key);
           }
         }
       }
     } catch (e) {}
 
-    const preferred = ["Idle", "idle", "Idling", "idling", "TapBody", "tap_body", "Flick", "flick"];
+    const preferred = ["Idle", "idle", "Idling", "idling", "TapBody", "tap_body", "Tap", "tap", "Flick", "flick"];
     const result = [];
     for (const p of preferred) {
       if (groups.indexOf(p) >= 0 && result.indexOf(p) < 0) result.push(p);
@@ -177,17 +191,41 @@
     return result;
   }
 
-  async function tryStartMotion(group) {
+  function motionCountInGroup(group) {
+    try {
+      const settings = model && model.internalModel && model.internalModel.settings;
+      const json =
+        (settings && settings.json) ||
+        (settings && settings._json) ||
+        (settings && settings._object) ||
+        null;
+
+      const candidates = [];
+      if (settings && settings.motions) candidates.push(settings.motions);
+      if (json && json.FileReferences && json.FileReferences.Motions) candidates.push(json.FileReferences.Motions);
+      if (json && json.motions) candidates.push(json.motions);
+
+      for (const motions of candidates) {
+        if (!motions || !Object.prototype.hasOwnProperty.call(motions, group)) continue;
+        const value = motions[group];
+        if (Array.isArray(value)) return Math.max(1, value.length);
+        if (value && typeof value === "object") return Math.max(1, Object.keys(value).length);
+        if (typeof value === "string") return 1;
+      }
+    } catch (e) {}
+    return 1;
+  }
+
+  async function tryStartMotion(group, index) {
     if (!model || !group) return false;
 
     try {
-      // pixi-live2d-display 常用调用：model.motion(group, index?, priority?)
-      await model.motion(group);
+      await model.motion(group, index);
       return true;
     } catch (e) {}
 
     try {
-      await model.motion(group, 0);
+      await model.motion(group);
       return true;
     } catch (e) {}
 
@@ -202,34 +240,49 @@
     return false;
   }
 
-  async function startIdleMotionLoop() {
-    idleGroups = extractMotionGroups();
-
-    // 先立即尝试一次，避免模型加载后一直静态。
-    let started = false;
-    for (const g of idleGroups) {
-      started = await tryStartMotion(g);
-      if (started) break;
+  async function playRandomMotionOnce() {
+    if (!model || isMotionPlaying || motionGroups.length === 0) {
+      return false;
     }
 
-    // 即使模型自己的 Idle 动作不可见，也始终叠加非常轻微的呼吸/漂浮，
-    // 避免看起来完全静态。
-    fallbackMotion = true;
-    lastMotionAt = performance.now();
+    const group = pickRandom(motionGroups);
+    const count = motionCountInGroup(group);
+    const index = Math.floor(Math.random() * Math.max(1, count));
 
-    setInterval(async function() {
-      if (!model) return;
-      const now = performance.now();
-      if (now - lastMotionAt < 7000) return;
-      lastMotionAt = now;
+    isMotionPlaying = true;
+    const ok = await tryStartMotion(group, index);
+    isMotionPlaying = false;
 
-      let ok = false;
-      for (const g of idleGroups) {
-        ok = await tryStartMotion(g);
-        if (ok) break;
+    return ok;
+  }
+
+  function startRandomMotionLoop() {
+    motionGroups = extractMotionGroups();
+
+    if (!motionGroups || motionGroups.length === 0) {
+      console.log("No Live2D motion groups found. Model will remain static.");
+      return;
+    }
+
+    console.log("Live2D motion groups:", motionGroups.join(", "));
+
+    // 先播一次模型自带动作。
+    playRandomMotionOnce();
+
+    function scheduleNext() {
+      if (motionTimer) {
+        clearTimeout(motionTimer);
       }
-      fallbackMotion = true;
-    }, 2500);
+
+      // 随机 6~12 秒播放一次，避免太机械。
+      const delay = 6000 + Math.floor(Math.random() * 6000);
+      motionTimer = setTimeout(async function() {
+        await playRandomMotionOnce();
+        scheduleNext();
+      }, delay);
+    }
+
+    scheduleNext();
   }
 
   async function main() {
@@ -305,25 +358,13 @@
     rawModelWidth = Math.max(1, model.width || 1);
     rawModelHeight = Math.max(1, model.height || 1);
 
-    applyLayout(1, 0);
+    applyLayout();
     window.addEventListener("resize", function() {
       app.renderer.resize(window.innerWidth, window.innerHeight);
-      applyLayout(1, 0);
+      applyLayout();
     });
 
-    await startIdleMotionLoop();
-
-    app.ticker.add(function(delta) {
-      if (!model) return;
-
-      // 没有 motion 时，给一个很轻微的呼吸/漂浮兜底。
-      if (fallbackMotion) {
-        fallbackTime += delta / 60;
-        const s = 1 + Math.sin(fallbackTime * 2.2) * 0.012;
-        const y = Math.sin(fallbackTime * 1.6) * 3;
-        applyLayout(s, y);
-      }
-    });
+    startRandomMotionLoop();
   }
 
   main().catch(function(e) {

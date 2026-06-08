@@ -61,7 +61,7 @@ public class Live2DSettingsActivity extends Activity {
                 + "点击“选择 Live2D 模型文件夹”，选择包含 model3.json / model.json 的模型文件夹即可。"
                 + "本软件会把模型文件夹复制到应用内部目录，避免 WebView 读取 content:// 或外部存储时显示失败。\\n"
                 + "位置和大小不用输入数值，点击“拖动/捏合调整位置大小”后直接用手操作。\\n"
-                + "v51 调整页会显示模拟首页卡片位置；缩放会直接改变人物大小，不再只拉伸外框。"
+                + "v52 会在导入时统计模型文件夹里的动作文件，并在显示时随机播放模型自带动作。"
                 + "Live2D 运行库已改成 APK 内置离线加载，车机运行时不需要联网。");
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         hint.setTextColor(Color.rgb(82, 82, 82));
@@ -245,10 +245,12 @@ public class Live2DSettingsActivity extends Activity {
         SharedPreferences sp = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE);
         String label = sp.getString(Live2DModelImporter.PREF_MODEL_LABEL, "");
         String path = sp.getString(Live2DDecorView.PREF_MODEL_PATH, "");
+        int motionCount = sp.getInt(Live2DModelImporter.PREF_MOTION_COUNT, 0);
         if (path == null || path.length() == 0) {
             modelValue.setText("当前模型：未选择");
         } else {
-            modelValue.setText("当前模型：" + (label == null || label.length() == 0 ? "已选择" : label));
+            modelValue.setText("当前模型：" + (label == null || label.length() == 0 ? "已选择" : label)
+                    + "，动作文件 " + motionCount + " 个");
         }
     }
 
@@ -285,6 +287,7 @@ public class Live2DSettingsActivity extends Activity {
                                     getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE).edit()
                                             .putString(Live2DDecorView.PREF_MODEL_PATH, result.modelPath)
                                             .putString(Live2DModelImporter.PREF_MODEL_LABEL, result.label)
+                                            .putInt(Live2DModelImporter.PREF_MOTION_COUNT, result.motionCount)
                                             .putBoolean(Live2DDecorView.PREF_ENABLED, true)
                                             .apply();
                                     enabledCheck.setChecked(true);
