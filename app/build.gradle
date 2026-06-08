@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 35
-        versionName '0.4.4-night-mode'
+        versionCode 36
+        versionName '0.4.5-car-cutout-weather-layout'
     }
 
     // GitHub 网页上传不会自动删除旧文件。
