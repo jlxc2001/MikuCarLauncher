@@ -62,7 +62,10 @@ public class MainActivity extends Activity {
         ));
 
         live2DView = new Live2DDecorView(this);
-        rootLayout.addView(live2DView, new FrameLayout.LayoutParams(1, 1));
+        rootLayout.addView(live2DView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
 
         launcherView = new LauncherCanvasView(this);
         launcherView.setDrawBackgroundLayer(false);
@@ -198,42 +201,7 @@ public class MainActivity extends Activity {
         live2DView.applySettings();
 
         boolean shouldShow = launcherView.getActiveIndex() == 0 && live2DView.isLive2DEnabled();
-        if (!shouldShow) {
-            live2DView.setVisibility(View.GONE);
-            return;
-        }
-
-        positionLive2DView();
-        live2DView.setVisibility(View.VISIBLE);
-    }
-
-    private void positionLive2DView() {
-        if (rootLayout == null || live2DView == null) {
-            return;
-        }
-
-        int rw = rootLayout.getWidth();
-        int rh = rootLayout.getHeight();
-        if (rw <= 0 || rh <= 0) {
-            return;
-        }
-
-        SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
-        float x = sp.getFloat(Live2DDecorView.PREF_X, Live2DDecorView.DEFAULT_X);
-        float y = sp.getFloat(Live2DDecorView.PREF_Y, Live2DDecorView.DEFAULT_Y);
-        float w = sp.getFloat(Live2DDecorView.PREF_W, Live2DDecorView.DEFAULT_W);
-        float h = sp.getFloat(Live2DDecorView.PREF_H, Live2DDecorView.DEFAULT_H);
-
-        float sx = rw / DESIGN_W;
-        float sy = rh / DESIGN_H;
-
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                Math.max(1, Math.round(w * sx)),
-                Math.max(1, Math.round(h * sy))
-        );
-        lp.leftMargin = Math.round(x * sx);
-        lp.topMargin = Math.round(y * sy);
-        live2DView.setLayoutParams(lp);
+        live2DView.setVisibility(shouldShow ? View.VISIBLE : View.GONE);
     }
 
     private void updateCard1WidgetVisibility() {

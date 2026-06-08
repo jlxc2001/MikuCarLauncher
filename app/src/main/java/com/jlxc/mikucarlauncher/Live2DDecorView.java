@@ -17,20 +17,30 @@ import java.net.URLEncoder;
 public class Live2DDecorView extends FrameLayout {
     public static final String PREF_ENABLED = "live2d_enabled";
     public static final String PREF_MODEL_PATH = "live2d_model_path";
+
+    // v48/v49 旧位置参数保留，避免设置页/旧配置报错。
     public static final String PREF_X = "live2d_x";
     public static final String PREF_Y = "live2d_y";
     public static final String PREF_W = "live2d_w";
     public static final String PREF_H = "live2d_h";
+
+    // v51 起真正调节的是“模型中心点 + 模型缩放”，不再调 WebView 框大小。
+    public static final String PREF_CENTER_X = "live2d_center_x";
+    public static final String PREF_CENTER_Y = "live2d_center_y";
     public static final String PREF_SCALE = "live2d_scale";
 
     public static final float DEFAULT_X = 1188f;
     public static final float DEFAULT_Y = 246f;
     public static final float DEFAULT_W = 520f;
     public static final float DEFAULT_H = 300f;
+    public static final float DEFAULT_CENTER_X = DEFAULT_X + DEFAULT_W / 2f;
+    public static final float DEFAULT_CENTER_Y = DEFAULT_Y + DEFAULT_H * 0.58f;
     public static final float DEFAULT_SCALE = 1.0f;
 
     private static final float DESIGN_W = 2560f;
     private static final float DESIGN_H = 720f;
+    private static final float MIN_SCALE = 0.25f;
+    private static final float MAX_SCALE = 3.5f;
 
     private WebView webView;
     private String lastUrl = "";
@@ -38,12 +48,9 @@ public class Live2DDecorView extends FrameLayout {
 
     private float downRawX;
     private float downRawY;
-    private int startLeft;
-    private int startTop;
-    private int startW;
-    private int startH;
     private float startCenterX;
     private float startCenterY;
+    private float startScale;
     private float startDist;
     private int pointerMode = 0;
 
@@ -106,8 +113,8 @@ public class Live2DDecorView extends FrameLayout {
         adjustMode = enable;
         setClickable(enable);
         setFocusable(enable);
-        // 调整模式下给一个很淡的蓝色区域提示，方便用户知道当前可拖拽/捏合的模型区域。
-        setBackgroundColor(enable ? 0x22008CFF : Color.TRANSPARENT);
+        // 只在调整页允许触摸；首页装饰层不吃触摸。
+        setBackgroundColor(Color.TRANSPARENT);
         webView.setClickable(false);
         webView.setLongClickable(false);
     }
@@ -125,19 +132,49 @@ public class Live2DDecorView extends FrameLayout {
         }
 
         SharedPreferences sp = getContext().getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE);
+        migrateOldFramePrefsIfNeeded(sp);
+
         String model = normalizeModelPath(sp.getString(PREF_MODEL_PATH, ""));
-        float scale = sp.getFloat(PREF_SCALE, DEFAULT_SCALE);
+        float centerX = sp.getFloat(PREF_CENTER_X, DEFAULT_CENTER_X);
+        float centerY = sp.getFloat(PREF_CENTER_Y, DEFAULT_CENTER_Y);
+        float scale = clampFloat(sp.getFloat(PREF_SCALE, DEFAULT_SCALE), MIN_SCALE, MAX_SCALE);
 
         if (TextUtils.isEmpty(model)) {
             setVisibility(View.GONE);
             return;
         }
 
-        String url = buildViewerUrl(model, scale);
+        String url = buildViewerUrl(model, centerX, centerY, scale);
         if (!url.equals(lastUrl)) {
             lastUrl = url;
             webView.loadUrl(url);
+        } else {
+            sendTransformToJs(centerX, centerY, scale);
         }
+    }
+
+    public void sendTransformToJs(float centerX, float centerY, float scale) {
+        try {
+            String js = "window.__mikuLive2DUpdate && window.__mikuLive2DUpdate("
+                    + centerX + "," + centerY + "," + scale + ");";
+            webView.evaluateJavascript(js, null);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private void migrateOldFramePrefsIfNeeded(SharedPreferences sp) {
+        if (sp.contains(PREF_CENTER_X) && sp.contains(PREF_CENTER_Y)) {
+            return;
+        }
+
+        float x = sp.getFloat(PREF_X, DEFAULT_X);
+        float y = sp.getFloat(PREF_Y, DEFAULT_Y);
+        float w = sp.getFloat(PREF_W, DEFAULT_W);
+        float h = sp.getFloat(PREF_H, DEFAULT_H);
+        sp.edit()
+                .putFloat(PREF_CENTER_X, x + w / 2f)
+                .putFloat(PREF_CENTER_Y, y + h * 0.58f)
+                .apply();
     }
 
     @Override
@@ -149,32 +186,26 @@ public class Live2DDecorView extends FrameLayout {
     }
 
     private boolean handleAdjustTouch(MotionEvent event) {
-        FrameLayout.LayoutParams lp = getLiveLayoutParams();
-        if (lp == null) {
-            return true;
-        }
+        SharedPreferences sp = getContext().getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE);
+        migrateOldFramePrefsIfNeeded(sp);
 
         int action = event.getActionMasked();
         if (action == MotionEvent.ACTION_DOWN) {
             pointerMode = 1;
             downRawX = event.getRawX();
             downRawY = event.getRawY();
-            startLeft = lp.leftMargin;
-            startTop = lp.topMargin;
-            startW = getWidth();
-            startH = getHeight();
+            startCenterX = sp.getFloat(PREF_CENTER_X, DEFAULT_CENTER_X);
+            startCenterY = sp.getFloat(PREF_CENTER_Y, DEFAULT_CENTER_Y);
+            startScale = clampFloat(sp.getFloat(PREF_SCALE, DEFAULT_SCALE), MIN_SCALE, MAX_SCALE);
             return true;
         }
 
         if (action == MotionEvent.ACTION_POINTER_DOWN && event.getPointerCount() >= 2) {
             pointerMode = 2;
             startDist = distance(event);
-            startW = getWidth();
-            startH = getHeight();
-            startLeft = lp.leftMargin;
-            startTop = lp.topMargin;
-            startCenterX = startLeft + startW / 2f;
-            startCenterY = startTop + startH / 2f;
+            startCenterX = sp.getFloat(PREF_CENTER_X, DEFAULT_CENTER_X);
+            startCenterY = sp.getFloat(PREF_CENTER_Y, DEFAULT_CENTER_Y);
+            startScale = clampFloat(sp.getFloat(PREF_SCALE, DEFAULT_SCALE), MIN_SCALE, MAX_SCALE);
             return true;
         }
 
@@ -183,103 +214,43 @@ public class Live2DDecorView extends FrameLayout {
                 float currentDist = distance(event);
                 if (startDist > 4f) {
                     float factor = currentDist / startDist;
-                    int parentW = getParentWidth();
-                    int parentH = getParentHeight();
-                    int minW = Math.max(120, Math.round(parentW * 0.08f));
-                    int minH = Math.max(90, Math.round(parentH * 0.10f));
-                    int maxW = Math.max(minW, Math.round(parentW * 0.70f));
-                    int maxH = Math.max(minH, Math.round(parentH * 0.70f));
-
-                    int newW = clamp(Math.round(startW * factor), minW, maxW);
-                    int newH = clamp(Math.round(startH * factor), minH, maxH);
-                    lp.width = newW;
-                    lp.height = newH;
-                    lp.leftMargin = Math.round(startCenterX - newW / 2f);
-                    lp.topMargin = Math.round(startCenterY - newH / 2f);
-                    clampPosition(lp);
-                    setLayoutParams(lp);
+                    float nextScale = clampFloat(startScale * factor, MIN_SCALE, MAX_SCALE);
+                    sendTransformToJs(startCenterX, startCenterY, nextScale);
+                    saveTransform(startCenterX, startCenterY, nextScale);
                 }
             } else {
-                float dx = event.getRawX() - downRawX;
-                float dy = event.getRawY() - downRawY;
-                lp.leftMargin = Math.round(startLeft + dx);
-                lp.topMargin = Math.round(startTop + dy);
-                clampPosition(lp);
-                setLayoutParams(lp);
+                float sx = getWidth() / DESIGN_W;
+                float sy = getHeight() / DESIGN_H;
+                if (sx <= 0f) sx = 1f;
+                if (sy <= 0f) sy = 1f;
+
+                float nextX = clampFloat(startCenterX + (event.getRawX() - downRawX) / sx, 0f, DESIGN_W);
+                float nextY = clampFloat(startCenterY + (event.getRawY() - downRawY) / sy, 0f, DESIGN_H);
+                sendTransformToJs(nextX, nextY, startScale);
+                saveTransform(nextX, nextY, startScale);
             }
             return true;
         }
 
-        if (action == MotionEvent.ACTION_UP
-                || action == MotionEvent.ACTION_CANCEL
-                || action == MotionEvent.ACTION_POINTER_UP) {
-            if (event.getPointerCount() <= 2) {
-                pointerMode = 1;
-            }
-            if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
-                pointerMode = 0;
-                saveCurrentLayoutToPrefs();
-            }
+        if (action == MotionEvent.ACTION_POINTER_UP) {
+            pointerMode = event.getPointerCount() <= 2 ? 1 : pointerMode;
+            return true;
+        }
+
+        if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_CANCEL) {
+            pointerMode = 0;
             return true;
         }
 
         return true;
     }
 
-    private FrameLayout.LayoutParams getLiveLayoutParams() {
-        android.view.ViewGroup.LayoutParams base = getLayoutParams();
-        if (base instanceof FrameLayout.LayoutParams) {
-            return (FrameLayout.LayoutParams) base;
-        }
-        return null;
-    }
-
-    private void clampPosition(FrameLayout.LayoutParams lp) {
-        int parentW = getParentWidth();
-        int parentH = getParentHeight();
-        int w = Math.max(1, lp.width);
-        int h = Math.max(1, lp.height);
-        lp.leftMargin = clamp(lp.leftMargin, 0, Math.max(0, parentW - w));
-        lp.topMargin = clamp(lp.topMargin, 0, Math.max(0, parentH - h));
-    }
-
-    private void saveCurrentLayoutToPrefs() {
-        FrameLayout.LayoutParams lp = getLiveLayoutParams();
-        if (lp == null) {
-            return;
-        }
-
-        int parentW = getParentWidth();
-        int parentH = getParentHeight();
-        if (parentW <= 0 || parentH <= 0) {
-            return;
-        }
-
-        float designX = lp.leftMargin / (parentW / DESIGN_W);
-        float designY = lp.topMargin / (parentH / DESIGN_H);
-        float designW = Math.max(1, lp.width) / (parentW / DESIGN_W);
-        float designH = Math.max(1, lp.height) / (parentH / DESIGN_H);
-
+    private void saveTransform(float centerX, float centerY, float scale) {
         getContext().getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE).edit()
-                .putFloat(PREF_X, designX)
-                .putFloat(PREF_Y, designY)
-                .putFloat(PREF_W, designW)
-                .putFloat(PREF_H, designH)
+                .putFloat(PREF_CENTER_X, centerX)
+                .putFloat(PREF_CENTER_Y, centerY)
+                .putFloat(PREF_SCALE, clampFloat(scale, MIN_SCALE, MAX_SCALE))
                 .apply();
-    }
-
-    private int getParentWidth() {
-        if (getParent() instanceof View) {
-            return Math.max(1, ((View) getParent()).getWidth());
-        }
-        return Math.max(1, getRootView().getWidth());
-    }
-
-    private int getParentHeight() {
-        if (getParent() instanceof View) {
-            return Math.max(1, ((View) getParent()).getHeight());
-        }
-        return Math.max(1, getRootView().getHeight());
     }
 
     private float distance(MotionEvent event) {
@@ -291,15 +262,14 @@ public class Live2DDecorView extends FrameLayout {
         return (float) Math.sqrt(dx * dx + dy * dy);
     }
 
-    private int clamp(int v, int min, int max) {
-        return Math.max(min, Math.min(max, v));
-    }
-
-    private String buildViewerUrl(String model, float scale) {
+    private String buildViewerUrl(String model, float centerX, float centerY, float scale) {
         try {
             return "file:///android_asset/live2d/live2d_decor.html"
                     + "?model=" + URLEncoder.encode(model, "UTF-8")
+                    + "&cx=" + URLEncoder.encode(String.valueOf(centerX), "UTF-8")
+                    + "&cy=" + URLEncoder.encode(String.valueOf(centerY), "UTF-8")
                     + "&scale=" + URLEncoder.encode(String.valueOf(scale), "UTF-8")
+                    + "&dw=2560&dh=720"
                     + "&t=" + System.currentTimeMillis();
         } catch (Throwable t) {
             return "file:///android_asset/live2d/live2d_decor.html";
@@ -327,5 +297,9 @@ public class Live2DDecorView extends FrameLayout {
         }
 
         return "file:///sdcard/" + text;
+    }
+
+    private float clampFloat(float v, float min, float max) {
+        return Math.max(min, Math.min(max, v));
     }
 }

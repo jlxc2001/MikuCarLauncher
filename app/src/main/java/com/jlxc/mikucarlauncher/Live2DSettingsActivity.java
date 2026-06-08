@@ -61,7 +61,8 @@ public class Live2DSettingsActivity extends Activity {
                 + "点击“选择 Live2D 模型文件夹”，选择包含 model3.json / model.json 的模型文件夹即可。"
                 + "本软件会把模型文件夹复制到应用内部目录，避免 WebView 读取 content:// 或外部存储时显示失败。\\n"
                 + "位置和大小不用输入数值，点击“拖动/捏合调整位置大小”后直接用手操作。\\n"
-                + "v50 已把 Live2D 运行库改成 APK 内置离线加载，车机运行时不需要联网。");
+                + "v51 调整页会显示模拟首页卡片位置；缩放会直接改变人物大小，不再只拉伸外框。"
+                + "Live2D 运行库已改成 APK 内置离线加载，车机运行时不需要联网。");
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         hint.setTextColor(Color.rgb(82, 82, 82));
         hint.setGravity(Gravity.CENTER_VERTICAL);
@@ -216,11 +217,13 @@ public class Live2DSettingsActivity extends Activity {
 
     private void resetPosition() {
         getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE).edit()
+                .putFloat(Live2DDecorView.PREF_CENTER_X, Live2DDecorView.DEFAULT_CENTER_X)
+                .putFloat(Live2DDecorView.PREF_CENTER_Y, Live2DDecorView.DEFAULT_CENTER_Y)
+                .putFloat(Live2DDecorView.PREF_SCALE, Live2DDecorView.DEFAULT_SCALE)
                 .putFloat(Live2DDecorView.PREF_X, Live2DDecorView.DEFAULT_X)
                 .putFloat(Live2DDecorView.PREF_Y, Live2DDecorView.DEFAULT_Y)
                 .putFloat(Live2DDecorView.PREF_W, Live2DDecorView.DEFAULT_W)
                 .putFloat(Live2DDecorView.PREF_H, Live2DDecorView.DEFAULT_H)
-                .putFloat(Live2DDecorView.PREF_SCALE, Live2DDecorView.DEFAULT_SCALE)
                 .apply();
         Toast.makeText(this, "已恢复默认位置大小", Toast.LENGTH_SHORT).show();
     }

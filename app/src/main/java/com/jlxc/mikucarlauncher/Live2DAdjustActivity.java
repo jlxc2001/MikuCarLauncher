@@ -16,12 +16,10 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 public class Live2DAdjustActivity extends Activity {
-    private static final float DESIGN_W = 2560f;
-    private static final float DESIGN_H = 720f;
-
     private FrameLayout rootLayout;
     private LauncherBackgroundView backgroundView;
     private Live2DDecorView live2DView;
+    private Live2DGuideOverlayView guideOverlayView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,15 +36,24 @@ public class Live2DAdjustActivity extends Activity {
 
         live2DView = new Live2DDecorView(this);
         live2DView.setAdjustMode(true);
-        rootLayout.addView(live2DView, new FrameLayout.LayoutParams(1, 1));
+        rootLayout.addView(live2DView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        guideOverlayView = new Live2DGuideOverlayView(this);
+        rootLayout.addView(guideOverlayView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
 
         TextView hint = new TextView(this);
-        hint.setText("拖动蓝色区域调整位置，双指捏合调整大小。调整结果会自动保存。");
+        hint.setText("拖动人物调整位置，双指捏合调整人物大小。白色半透明块是模拟首页卡片位置。");
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
         hint.setTextColor(Color.WHITE);
         hint.setGravity(Gravity.CENTER_VERTICAL);
         hint.setPadding(dp(28), 0, dp(28), 0);
-        hint.setBackgroundColor(0x88000000);
+        hint.setBackgroundColor(0x99000000);
 
         FrameLayout.LayoutParams hintLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -60,7 +67,7 @@ public class Live2DAdjustActivity extends Activity {
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
         bar.setPadding(dp(16), 0, dp(16), 0);
-        bar.setBackgroundColor(0x66000000);
+        bar.setBackgroundColor(0x77000000);
 
         Button reset = new Button(this);
         reset.setText("恢复默认位置");
@@ -103,10 +110,10 @@ public class Live2DAdjustActivity extends Activity {
         rootLayout.post(new Runnable() {
             @Override
             public void run() {
-                positionLive2DView();
                 live2DView.applySettings();
                 live2DView.setVisibility(View.VISIBLE);
                 live2DView.bringToFront();
+                guideOverlayView.bringToFront();
                 hint.bringToFront();
                 bar.bringToFront();
             }
@@ -124,6 +131,9 @@ public class Live2DAdjustActivity extends Activity {
             live2DView.applySettings();
             live2DView.setVisibility(View.VISIBLE);
         }
+        if (guideOverlayView != null) {
+            guideOverlayView.invalidate();
+        }
     }
 
     @Override
@@ -131,45 +141,26 @@ public class Live2DAdjustActivity extends Activity {
         super.onWindowFocusChanged(hasFocus);
         if (hasFocus) {
             keepFullscreen();
-            positionLive2DView();
+            if (live2DView != null) {
+                live2DView.applySettings();
+            }
         }
-    }
-
-    private void positionLive2DView() {
-        int rw = rootLayout.getWidth();
-        int rh = rootLayout.getHeight();
-        if (rw <= 0 || rh <= 0) {
-            return;
-        }
-
-        SharedPreferences sp = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE);
-        float x = sp.getFloat(Live2DDecorView.PREF_X, Live2DDecorView.DEFAULT_X);
-        float y = sp.getFloat(Live2DDecorView.PREF_Y, Live2DDecorView.DEFAULT_Y);
-        float w = sp.getFloat(Live2DDecorView.PREF_W, Live2DDecorView.DEFAULT_W);
-        float h = sp.getFloat(Live2DDecorView.PREF_H, Live2DDecorView.DEFAULT_H);
-
-        float sx = rw / DESIGN_W;
-        float sy = rh / DESIGN_H;
-
-        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
-                Math.max(1, Math.round(w * sx)),
-                Math.max(1, Math.round(h * sy))
-        );
-        lp.leftMargin = Math.round(x * sx);
-        lp.topMargin = Math.round(y * sy);
-        live2DView.setLayoutParams(lp);
     }
 
     private void resetPosition() {
         getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE).edit()
+                .putFloat(Live2DDecorView.PREF_CENTER_X, Live2DDecorView.DEFAULT_CENTER_X)
+                .putFloat(Live2DDecorView.PREF_CENTER_Y, Live2DDecorView.DEFAULT_CENTER_Y)
+                .putFloat(Live2DDecorView.PREF_SCALE, Live2DDecorView.DEFAULT_SCALE)
                 .putFloat(Live2DDecorView.PREF_X, Live2DDecorView.DEFAULT_X)
                 .putFloat(Live2DDecorView.PREF_Y, Live2DDecorView.DEFAULT_Y)
                 .putFloat(Live2DDecorView.PREF_W, Live2DDecorView.DEFAULT_W)
                 .putFloat(Live2DDecorView.PREF_H, Live2DDecorView.DEFAULT_H)
-                .putFloat(Live2DDecorView.PREF_SCALE, Live2DDecorView.DEFAULT_SCALE)
                 .apply();
-        positionLive2DView();
-        Toast.makeText(this, "已恢复默认位置", Toast.LENGTH_SHORT).show();
+        if (live2DView != null) {
+            live2DView.applySettings();
+        }
+        Toast.makeText(this, "已恢复默认位置和大小", Toast.LENGTH_SHORT).show();
     }
 
     private void keepFullscreen() {
