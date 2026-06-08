@@ -22,6 +22,19 @@
       background: transparent;
       pointer-events: none;
     }
+    #msg {
+      position: fixed;
+      left: 8px;
+      top: 8px;
+      right: 8px;
+      color: rgba(255,255,255,.82);
+      background: rgba(0,0,0,.28);
+      font: 12px sans-serif;
+      padding: 6px 8px;
+      border-radius: 8px;
+      display: none;
+      pointer-events: none;
+    }
     canvas {
       background: transparent !important;
       pointer-events: none;
@@ -30,29 +43,86 @@
 </head>
 <body>
 <div id="stage"></div>
+<div id="msg"></div>
 <script>
 (function () {
   const params = new URLSearchParams(location.search);
   const modelUrl = params.get("model") || "";
   const userScale = parseFloat(params.get("scale") || "1") || 1;
+  const msg = document.getElementById("msg");
+
+  function showMsg(text) {
+    console.log(text);
+    // 调整页面里可以看到失败原因；首页里这个 WebView 在卡片下方，文字通常也会被遮住。
+    msg.textContent = text;
+    msg.style.display = "block";
+  }
 
   function loadScript(src) {
     return new Promise(function(resolve, reject) {
       const s = document.createElement("script");
       s.src = src;
       s.onload = resolve;
-      s.onerror = reject;
+      s.onerror = function() { reject(new Error("load script failed: " + src)); };
       document.head.appendChild(s);
     });
   }
 
-  async function main() {
-    if (!modelUrl) return;
+  async function loadScriptAny(list) {
+    let last = null;
+    for (const src of list) {
+      try {
+        await loadScript(src);
+        return src;
+      } catch (e) {
+        last = e;
+      }
+    }
+    throw last || new Error("script load failed");
+  }
 
-    // WebView 装饰层：先用 CDN 运行库，后续也可以把这些 JS 放成本地 assets 再改成 file:///android_asset/。
-    await loadScript("https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js");
-    await loadScript("https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js");
-    await loadScript("https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js");
+  async function main() {
+    if (!modelUrl) {
+      showMsg("Live2D model path is empty");
+      return;
+    }
+
+    // 优先加载 APK 内置离线运行库；如果构建时没有下载成功，再尝试 /sdcard 和在线 CDN。
+    await loadScriptAny([
+      "file:///android_asset/live2d/runtime/pixi.min.js",
+      "file:///sdcard/MikuCarLauncher/live2d/runtime/pixi.min.js",
+      "https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js",
+      "https://unpkg.com/pixi.js@6.5.10/dist/browser/pixi.min.js"
+    ]);
+
+    // Cubism 2.1 运行库是可选项；没有它时，Cubism 3/4 模型仍然可以继续尝试加载。
+    try {
+      await loadScriptAny([
+        "file:///android_asset/live2d/runtime/live2d.min.js",
+        "file:///sdcard/MikuCarLauncher/live2d/runtime/live2d.min.js",
+        "https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js"
+      ]);
+    } catch (e) {
+      console.log("Cubism 2 runtime is not loaded", e);
+    }
+
+    await loadScriptAny([
+      "file:///android_asset/live2d/runtime/live2dcubismcore.min.js",
+      "file:///sdcard/MikuCarLauncher/live2d/runtime/live2dcubismcore.min.js",
+      "https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"
+    ]);
+    await loadScriptAny([
+      "file:///android_asset/live2d/runtime/pixi-live2d-display.min.js",
+      "file:///android_asset/live2d/runtime/index.min.js",
+      "file:///sdcard/MikuCarLauncher/live2d/runtime/pixi-live2d-display.min.js",
+      "file:///sdcard/MikuCarLauncher/live2d/runtime/index.min.js",
+      "https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/index.min.js",
+      "https://unpkg.com/pixi-live2d-display@0.4.0/dist/index.min.js"
+    ]);
+
+    if (!window.PIXI || !PIXI.live2d || !PIXI.live2d.Live2DModel) {
+      throw new Error("Live2D runtime is not ready");
+    }
 
     const app = new PIXI.Application({
       view: document.createElement("canvas"),
@@ -88,14 +158,13 @@
     layout();
     window.addEventListener("resize", layout);
 
-    if (model.motion) {
-      try { model.motion("Idle"); } catch (e) {}
-    }
+    try {
+      if (model.motion) model.motion("Idle");
+    } catch (e) {}
   }
 
   main().catch(function(e) {
-    // 失败时保持透明，不遮挡桌面。
-    console.log("Live2D load failed", e);
+    showMsg("Live2D加载失败：" + (e && e.message ? e.message : e));
     document.getElementById("stage").innerHTML = "";
   });
 })();

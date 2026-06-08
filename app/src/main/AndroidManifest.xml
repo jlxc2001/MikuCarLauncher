@@ -14,6 +14,10 @@
         android:usesCleartextTraffic="true">
 
         <activity
+            android:name=".Live2DAdjustActivity"
+            android:screenOrientation="landscape"
+            android:exported="false" />
+        <activity
             android:name=".Live2DSettingsActivity"
             android:screenOrientation="landscape"
             android:exported="false" />

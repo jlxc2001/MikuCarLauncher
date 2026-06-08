@@ -1,10 +1,12 @@
 package com.jlxc.mikucarlauncher;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
-import android.text.InputType;
+import android.provider.Settings;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -12,20 +14,16 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CheckBox;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 public class Live2DSettingsActivity extends Activity {
+    private static final int REQ_PICK_LIVE2D_FOLDER = 2810;
+
     private CheckBox enabledCheck;
-    private EditText modelPathEdit;
-    private EditText xEdit;
-    private EditText yEdit;
-    private EditText wEdit;
-    private EditText hEdit;
-    private EditText scaleEdit;
+    private TextView modelValue;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -59,15 +57,17 @@ public class Live2DSettingsActivity extends Activity {
         ));
 
         TextView hint = new TextView(this);
-        hint.setText("Live2D 会放在背景之上、所有功能卡片之下，默认位置就是首页中间偏右那块空白区域。\\n"
-                + "模型路径建议填写 model3.json / model.json，例如：/sdcard/MikuCarLauncher/live2d/miku/model3.json。\\n"
-                + "注意：这版先用 WebView 装饰层承载 Live2D，模型文件夹里的贴图、moc3、physics 等文件需要和 json 保持原目录结构。首次加载在线 JS 运行库时需要联网。");
+        hint.setText("Live2D 会放在背景之上、所有功能卡片之下。\\n"
+                + "点击“选择 Live2D 模型文件夹”，选择包含 model3.json / model.json 的模型文件夹即可。"
+                + "本软件会把模型文件夹复制到应用内部目录，避免 WebView 读取 content:// 或外部存储时显示失败。\\n"
+                + "位置和大小不用输入数值，点击“拖动/捏合调整位置大小”后直接用手操作。\\n"
+                + "v50 已把 Live2D 运行库改成 APK 内置离线加载，车机运行时不需要联网。");
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         hint.setTextColor(Color.rgb(82, 82, 82));
         hint.setGravity(Gravity.CENTER_VERTICAL);
         hint.setSingleLine(false);
         root.addView(hint, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(128)
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(132)
         ));
 
         enabledCheck = new CheckBox(this);
@@ -80,22 +80,34 @@ public class Live2DSettingsActivity extends Activity {
         enabledCheck.setChecked(sp.getBoolean(Live2DDecorView.PREF_ENABLED, false));
         root.addView(enabledCheck, rowLp());
 
-        modelPathEdit = addEdit(root, "Live2D 模型路径 / URL", sp.getString(Live2DDecorView.PREF_MODEL_PATH, ""));
-        xEdit = addEdit(root, "位置 X（默认 1188）", String.valueOf(sp.getFloat(Live2DDecorView.PREF_X, Live2DDecorView.DEFAULT_X)));
-        yEdit = addEdit(root, "位置 Y（默认 246）", String.valueOf(sp.getFloat(Live2DDecorView.PREF_Y, Live2DDecorView.DEFAULT_Y)));
-        wEdit = addEdit(root, "宽度 W（默认 520）", String.valueOf(sp.getFloat(Live2DDecorView.PREF_W, Live2DDecorView.DEFAULT_W)));
-        hEdit = addEdit(root, "高度 H（默认 300）", String.valueOf(sp.getFloat(Live2DDecorView.PREF_H, Live2DDecorView.DEFAULT_H)));
-        scaleEdit = addEdit(root, "模型缩放（默认 1.0）", String.valueOf(sp.getFloat(Live2DDecorView.PREF_SCALE, Live2DDecorView.DEFAULT_SCALE)));
+        modelValue = addValue(root, "当前模型：");
+        refreshModelValue();
 
-        Button save = addButton(root, "保存 Live2D 设置");
-        save.setOnClickListener(new View.OnClickListener() {
+        Button chooseFolder = addButton(root, "选择 Live2D 模型文件夹");
+        chooseFolder.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                saveSettings();
+                chooseLive2DFolder();
             }
         });
 
-        Button reset = addButton(root, "恢复默认位置");
+        Button adjust = addButton(root, "拖动 / 捏合调整位置大小");
+        adjust.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                openAdjustActivity();
+            }
+        });
+
+        Button save = addButton(root, "保存启用状态");
+        save.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                saveEnabledState();
+            }
+        });
+
+        Button reset = addButton(root, "恢复默认位置大小");
         reset.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -115,6 +127,14 @@ public class Live2DSettingsActivity extends Activity {
             }
         });
 
+        Button webviewSettings = addButton(root, "打开系统 WebView / 应用详情");
+        webviewSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                openSelfAppDetails();
+            }
+        });
+
         Button back = addButton(root, "返回车机桌面设置");
         back.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -126,27 +146,19 @@ public class Live2DSettingsActivity extends Activity {
         setContentView(scrollView);
     }
 
-    private EditText addEdit(LinearLayout root, String label, String value) {
-        TextView tv = new TextView(this);
-        tv.setText(label);
-        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
-        tv.setTextColor(Color.rgb(70, 70, 70));
-        tv.setGravity(Gravity.BOTTOM | Gravity.LEFT);
-        root.addView(tv, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(42)
+    private TextView addValue(LinearLayout root, String text) {
+        TextView value = new TextView(this);
+        value.setText(text);
+        value.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
+        value.setTextColor(Color.rgb(35, 35, 35));
+        value.setGravity(Gravity.CENTER_VERTICAL);
+        value.setSingleLine(false);
+        value.setPadding(dp(26), 0, dp(26), 0);
+        value.setBackgroundColor(Color.WHITE);
+        root.addView(value, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(88)
         ));
-
-        EditText edit = new EditText(this);
-        edit.setSingleLine(true);
-        edit.setText(value == null ? "" : value);
-        edit.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
-        edit.setTextColor(Color.rgb(20, 20, 20));
-        edit.setSelectAllOnFocus(false);
-        edit.setPadding(dp(22), 0, dp(22), 0);
-        edit.setBackgroundColor(Color.WHITE);
-        edit.setInputType(InputType.TYPE_CLASS_TEXT);
-        root.addView(edit, rowLp());
-        return edit;
+        return value;
     }
 
     private Button addButton(LinearLayout root, String text) {
@@ -172,35 +184,122 @@ public class Live2DSettingsActivity extends Activity {
         return lp;
     }
 
-    private void saveSettings() {
-        SharedPreferences.Editor editor = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE).edit();
-        editor.putBoolean(Live2DDecorView.PREF_ENABLED, enabledCheck.isChecked());
-        editor.putString(Live2DDecorView.PREF_MODEL_PATH, modelPathEdit.getText().toString().trim());
-        editor.putFloat(Live2DDecorView.PREF_X, parseFloat(xEdit, Live2DDecorView.DEFAULT_X));
-        editor.putFloat(Live2DDecorView.PREF_Y, parseFloat(yEdit, Live2DDecorView.DEFAULT_Y));
-        editor.putFloat(Live2DDecorView.PREF_W, parseFloat(wEdit, Live2DDecorView.DEFAULT_W));
-        editor.putFloat(Live2DDecorView.PREF_H, parseFloat(hEdit, Live2DDecorView.DEFAULT_H));
-        editor.putFloat(Live2DDecorView.PREF_SCALE, parseFloat(scaleEdit, Live2DDecorView.DEFAULT_SCALE));
-        editor.apply();
+    private void chooseLive2DFolder() {
+        try {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                    | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                    | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+            startActivityForResult(intent, REQ_PICK_LIVE2D_FOLDER);
+        } catch (Throwable t) {
+            Toast.makeText(this, "无法打开文件夹选择器", Toast.LENGTH_SHORT).show();
+        }
+    }
 
-        Toast.makeText(this, "已保存 Live2D 设置，返回首页后生效", Toast.LENGTH_SHORT).show();
+    private void openAdjustActivity() {
+        SharedPreferences sp = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE);
+        String model = sp.getString(Live2DDecorView.PREF_MODEL_PATH, "");
+        if (model == null || model.trim().length() == 0) {
+            Toast.makeText(this, "请先选择 Live2D 模型文件夹", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        startActivity(new Intent(this, Live2DAdjustActivity.class));
+    }
+
+    private void saveEnabledState() {
+        getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE).edit()
+                .putBoolean(Live2DDecorView.PREF_ENABLED, enabledCheck.isChecked())
+                .apply();
+        Toast.makeText(this, "已保存 Live2D 启用状态", Toast.LENGTH_SHORT).show();
     }
 
     private void resetPosition() {
-        xEdit.setText(String.valueOf(Live2DDecorView.DEFAULT_X));
-        yEdit.setText(String.valueOf(Live2DDecorView.DEFAULT_Y));
-        wEdit.setText(String.valueOf(Live2DDecorView.DEFAULT_W));
-        hEdit.setText(String.valueOf(Live2DDecorView.DEFAULT_H));
-        scaleEdit.setText(String.valueOf(Live2DDecorView.DEFAULT_SCALE));
-        Toast.makeText(this, "已填入默认位置，记得保存", Toast.LENGTH_SHORT).show();
+        getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE).edit()
+                .putFloat(Live2DDecorView.PREF_X, Live2DDecorView.DEFAULT_X)
+                .putFloat(Live2DDecorView.PREF_Y, Live2DDecorView.DEFAULT_Y)
+                .putFloat(Live2DDecorView.PREF_W, Live2DDecorView.DEFAULT_W)
+                .putFloat(Live2DDecorView.PREF_H, Live2DDecorView.DEFAULT_H)
+                .putFloat(Live2DDecorView.PREF_SCALE, Live2DDecorView.DEFAULT_SCALE)
+                .apply();
+        Toast.makeText(this, "已恢复默认位置大小", Toast.LENGTH_SHORT).show();
     }
 
-    private float parseFloat(EditText edit, float fallback) {
+    private void openSelfAppDetails() {
         try {
-            return Float.parseFloat(edit.getText().toString().trim());
-        } catch (Throwable ignored) {
-            return fallback;
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(Uri.parse("package:" + getPackageName()));
+            startActivity(intent);
+        } catch (Throwable t) {
+            Toast.makeText(this, "无法打开系统详情", Toast.LENGTH_SHORT).show();
         }
+    }
+
+    private void refreshModelValue() {
+        if (modelValue == null) {
+            return;
+        }
+        SharedPreferences sp = getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE);
+        String label = sp.getString(Live2DModelImporter.PREF_MODEL_LABEL, "");
+        String path = sp.getString(Live2DDecorView.PREF_MODEL_PATH, "");
+        if (path == null || path.length() == 0) {
+            modelValue.setText("当前模型：未选择");
+        } else {
+            modelValue.setText("当前模型：" + (label == null || label.length() == 0 ? "已选择" : label));
+        }
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, final Intent data) {
+        if (requestCode == REQ_PICK_LIVE2D_FOLDER) {
+            if (resultCode == RESULT_OK && data != null && data.getData() != null) {
+                final Uri treeUri = data.getData();
+                try {
+                    final int flags = data.getFlags()
+                            & (Intent.FLAG_GRANT_READ_URI_PERMISSION
+                            | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                            | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION);
+                    getContentResolver().takePersistableUriPermission(
+                            treeUri,
+                            flags & (Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+                    );
+                } catch (Throwable ignored) {
+                }
+
+                Toast.makeText(this, "正在导入 Live2D 模型文件夹…", Toast.LENGTH_SHORT).show();
+                Thread worker = new Thread(new Runnable() {
+                    @Override
+                    public void run() {
+                        final Live2DModelImporter.Result result = Live2DModelImporter.importFromTreeUri(
+                                Live2DSettingsActivity.this.getApplicationContext(),
+                                treeUri
+                        );
+
+                        runOnUiThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                if (result.success) {
+                                    getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE).edit()
+                                            .putString(Live2DDecorView.PREF_MODEL_PATH, result.modelPath)
+                                            .putString(Live2DModelImporter.PREF_MODEL_LABEL, result.label)
+                                            .putBoolean(Live2DDecorView.PREF_ENABLED, true)
+                                            .apply();
+                                    enabledCheck.setChecked(true);
+                                    refreshModelValue();
+                                    Toast.makeText(Live2DSettingsActivity.this, result.message, Toast.LENGTH_LONG).show();
+                                } else {
+                                    Toast.makeText(Live2DSettingsActivity.this, result.message, Toast.LENGTH_LONG).show();
+                                }
+                            }
+                        });
+                    }
+                }, "MikuCarLauncher-Live2DImporter");
+                worker.setPriority(Thread.MIN_PRIORITY);
+                worker.start();
+            }
+            return;
+        }
+        super.onActivityResult(requestCode, resultCode, data);
     }
 
     private void keepFullscreen() {

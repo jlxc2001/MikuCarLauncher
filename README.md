@@ -285,3 +285,35 @@ A4L 车机桌面项目。
 - 默认放置区域为首页中间偏右空白区域：x=1188, y=246, w=520, h=300。
 - 支持 `/sdcard/MikuCarLauncher/live2d/xxx/model3.json` 这类本地模型路径，也支持 http/https/file/content URI。
 - 当前版本先用 WebView + 在线 JS 运行库方案，首次加载运行库需要联网；模型文件夹内 moc3、贴图、physics 等资源需保持 Live2D 原目录结构。
+
+
+## v49
+- Live2D 设置方式重做：不再要求用户手动输入模型路径。
+- 新增“选择 Live2D 模型文件夹”：使用 Android 文件夹选择器选择包含 `model3.json` / `model.json` 的模型文件夹。
+- 选择后会把整个模型文件夹复制到应用内部目录，再用内部 `file://` 路径加载，减少 WebView 读取 `content://` 或外部存储导致模型不显示的问题。
+- 新增 `Live2DModelImporter`：递归复制模型文件夹，自动寻找 `.model3.json`、`model.json` 或 JSON 模型文件。
+- 新增 `Live2DAdjustActivity`：位置和大小不再靠输入数值，直接用手拖动调整位置、双指捏合调整大小。
+- `Live2DDecorView` 新增调整模式：支持拖动、捏合、自动保存设计坐标。
+- Live2D 调整页面会显示一个淡蓝色可操作区域，方便用户知道当前可拖动/捏合的位置。
+- Live2D Web 页面增加本地运行库优先加载：
+  - `/sdcard/MikuCarLauncher/live2d/runtime/pixi.min.js`
+  - `/sdcard/MikuCarLauncher/live2d/runtime/live2dcubismcore.min.js`
+  - `/sdcard/MikuCarLauncher/live2d/runtime/pixi-live2d-display.min.js` 或 `index.min.js`
+- 如果本地运行库不存在，再尝试在线 CDN。
+- 新增 `Live2DAdjustActivity` 到 Manifest。
+
+
+## v50
+- Live2D 运行库改为 APK 内置离线加载。
+- `live2d_decor.html` 加载顺序调整为：
+  1. `file:///android_asset/live2d/runtime/`
+  2. `/sdcard/MikuCarLauncher/live2d/runtime/`
+  3. 在线 CDN 兜底
+- 新增 Gradle 任务 `prepareOfflineLive2DRuntime`，编译时自动下载并写入 `app/src/main/assets/live2d/runtime/`：
+  - `pixi.min.js`
+  - `pixi-live2d-display.min.js`
+  - `live2dcubismcore.min.js`
+  - `live2d.min.js`
+- APK 安装到车机后，Live2D 运行时不再依赖车机联网。
+- 如果 GitHub Actions / 编译环境无法访问外网，也可以手动把上述 4 个 JS 文件放到 `app/src/main/assets/live2d/runtime/`，任务会自动复用本地文件。
+- 设置页文案已更新为“v50 已把 Live2D 运行库改成 APK 内置离线加载，车机运行时不需要联网”。
