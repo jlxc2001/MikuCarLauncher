@@ -90,8 +90,10 @@ public class LauncherCanvasView extends View {
 
     private final Bitmap background;
     private final Bitmap nightBackground;
-    private Bitmap customBackground;
-    private String customBackgroundUri;
+    private Bitmap customDayBackground;
+    private String customDayBackgroundUri;
+    private Bitmap customNightBackground;
+    private String customNightBackgroundUri;
     private final Bitmap selectedBg;
     private final Bitmap[] icons = new Bitmap[7];
     private final Bitmap btStatusIcon;
@@ -314,36 +316,50 @@ public class LauncherCanvasView extends View {
     }
 
     private Bitmap getCurrentBackground() {
+        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         if (isNightMode()) {
-            return nightBackground != null ? nightBackground : background;
+            Bitmap fallbackNight = nightBackground != null ? nightBackground : background;
+            String uriText = sp.getString("app_night_background_uri", "");
+            if (uriText == null || uriText.length() == 0) {
+                customNightBackgroundUri = "";
+                customNightBackground = null;
+                return fallbackNight;
+            }
+            if (uriText.equals(customNightBackgroundUri) && customNightBackground != null) {
+                return customNightBackground;
+            }
+            customNightBackgroundUri = uriText;
+            customNightBackground = loadBackgroundBitmap(uriText);
+            return customNightBackground != null ? customNightBackground : fallbackNight;
         }
 
-        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        String uriText = sp.getString("app_background_uri", "");
+        // 兼容旧版本：如果用户之前设置过 app_background_uri，则作为日间背景继续使用。
+        String uriText = sp.getString("app_day_background_uri", sp.getString("app_background_uri", ""));
         if (uriText == null || uriText.length() == 0) {
-            customBackgroundUri = "";
-            customBackground = null;
+            customDayBackgroundUri = "";
+            customDayBackground = null;
             return background;
         }
-
-        if (uriText.equals(customBackgroundUri) && customBackground != null) {
-            return customBackground;
+        if (uriText.equals(customDayBackgroundUri) && customDayBackground != null) {
+            return customDayBackground;
         }
+        customDayBackgroundUri = uriText;
+        customDayBackground = loadBackgroundBitmap(uriText);
+        return customDayBackground != null ? customDayBackground : background;
+    }
 
-        customBackgroundUri = uriText;
-        customBackground = null;
+    private Bitmap loadBackgroundBitmap(String uriText) {
         try {
             android.content.ContentResolver resolver = getContext().getContentResolver();
             java.io.InputStream input = resolver.openInputStream(Uri.parse(uriText));
             if (input != null) {
-                customBackground = BitmapFactory.decodeStream(input);
+                Bitmap bitmap = BitmapFactory.decodeStream(input);
                 input.close();
+                return bitmap;
             }
         } catch (Throwable ignored) {
-            customBackground = null;
         }
-
-        return customBackground != null ? customBackground : background;
+        return null;
     }
 
     private boolean isNightMode() {

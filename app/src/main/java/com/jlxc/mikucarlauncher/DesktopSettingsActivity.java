@@ -29,7 +29,8 @@ public class DesktopSettingsActivity extends Activity {
     private static final int REQ_SELECT_WIDGET_PROVIDER = 2501;
     private static final int REQ_BIND_WIDGET = 2502;
     private static final int REQ_CONFIG_WIDGET = 2503;
-    private static final int REQ_PICK_BACKGROUND = 2601;
+    private static final int REQ_PICK_DAY_BACKGROUND = 2601;
+    private static final int REQ_PICK_NIGHT_BACKGROUND = 2602;
 
     private TextView navValue;
     private TextView musicValue;
@@ -37,7 +38,8 @@ public class DesktopSettingsActivity extends Activity {
     private TextView card1WidgetValue;
     private TextView commonAppsValue;
     private TextView weatherValue;
-    private TextView backgroundValue;
+    private TextView dayBackgroundValue;
+    private TextView nightBackgroundValue;
     private TextView nightModeValue;
     private TextView iconPackValue;
 
@@ -183,16 +185,25 @@ public class DesktopSettingsActivity extends Activity {
             }
         });
 
-        backgroundValue = addValue(root, "APP背景：");
-        Button chooseBackground = addButton(root, "更换APP背景图片");
-        chooseBackground.setOnClickListener(new View.OnClickListener() {
+        dayBackgroundValue = addValue(root, "日间背景图片：");
+        Button chooseDayBackground = addButton(root, "更换日间背景图片");
+        chooseDayBackground.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                pickAppBackground();
+                pickAppBackground(REQ_PICK_DAY_BACKGROUND, "选择日间背景图片");
             }
         });
 
-        Button resetBackground = addButton(root, "恢复默认APP背景");
+        nightBackgroundValue = addValue(root, "夜间背景图片：");
+        Button chooseNightBackground = addButton(root, "更换夜间背景图片");
+        chooseNightBackground.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                pickAppBackground(REQ_PICK_NIGHT_BACKGROUND, "选择夜间背景图片");
+            }
+        });
+
+        Button resetBackground = addButton(root, "恢复默认日间/夜间背景");
         resetBackground.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -303,25 +314,29 @@ public class DesktopSettingsActivity extends Activity {
                     + "，日出 " + NightModeHelper.formatMinute(sunrise)
                     + " / 日落 " + NightModeHelper.formatMinute(sunset));
         }
-        if (backgroundValue != null) {
-            String label = sp.getString("app_background_label", "默认背景");
-            backgroundValue.setText("APP背景： " + label);
+        if (dayBackgroundValue != null) {
+            String label = sp.getString("app_day_background_label", sp.getString("app_background_label", "默认日间背景"));
+            dayBackgroundValue.setText("日间背景图片： " + label);
+        }
+        if (nightBackgroundValue != null) {
+            String label = sp.getString("app_night_background_label", "默认夜间背景");
+            nightBackgroundValue.setText("夜间背景图片： " + label);
         }
     }
 
-    private void pickAppBackground() {
+    private void pickAppBackground(int requestCode, String title) {
         try {
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
             intent.addCategory(Intent.CATEGORY_OPENABLE);
             intent.setType("image/*");
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
-            startActivityForResult(intent, REQ_PICK_BACKGROUND);
+            startActivityForResult(intent, requestCode);
         } catch (Throwable t) {
             try {
                 Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
                 intent.setType("image/*");
                 intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                startActivityForResult(Intent.createChooser(intent, "选择APP背景图片"), REQ_PICK_BACKGROUND);
+                startActivityForResult(Intent.createChooser(intent, title), requestCode);
             } catch (Throwable e) {
                 Toast.makeText(this, "无法打开图片选择器", Toast.LENGTH_SHORT).show();
             }
@@ -331,9 +346,13 @@ public class DesktopSettingsActivity extends Activity {
     private void resetAppBackground() {
         getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                 .remove("app_background_uri")
-                .putString("app_background_label", "默认背景")
+                .remove("app_background_label")
+                .remove("app_day_background_uri")
+                .putString("app_day_background_label", "默认日间背景")
+                .remove("app_night_background_uri")
+                .putString("app_night_background_label", "默认夜间背景")
                 .apply();
-        Toast.makeText(this, "已恢复默认APP背景", Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "已恢复默认日间/夜间背景", Toast.LENGTH_SHORT).show();
         refreshValues();
     }
 
@@ -477,7 +496,7 @@ public class DesktopSettingsActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         keepFullscreen();
 
-        if (requestCode == REQ_PICK_BACKGROUND) {
+        if (requestCode == REQ_PICK_DAY_BACKGROUND || requestCode == REQ_PICK_NIGHT_BACKGROUND) {
             if (resultCode == RESULT_OK && data != null && data.getData() != null) {
                 Uri uri = data.getData();
                 try {
@@ -486,12 +505,17 @@ public class DesktopSettingsActivity extends Activity {
                 } catch (Throwable ignored) {
                 }
 
-                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                        .putString("app_background_uri", uri.toString())
-                        .putString("app_background_label", getDisplayName(uri))
-                        .apply();
-
-                Toast.makeText(this, "已更换APP背景", Toast.LENGTH_SHORT).show();
+                SharedPreferences.Editor editor = getSharedPreferences(PREFS, MODE_PRIVATE).edit();
+                if (requestCode == REQ_PICK_DAY_BACKGROUND) {
+                    editor.putString("app_day_background_uri", uri.toString())
+                            .putString("app_day_background_label", getDisplayName(uri));
+                    Toast.makeText(this, "已更换日间背景", Toast.LENGTH_SHORT).show();
+                } else {
+                    editor.putString("app_night_background_uri", uri.toString())
+                            .putString("app_night_background_label", getDisplayName(uri));
+                    Toast.makeText(this, "已更换夜间背景", Toast.LENGTH_SHORT).show();
+                }
+                editor.apply();
                 refreshValues();
             }
             return;

@@ -66,7 +66,7 @@ public class CustomIconActivity extends Activity {
         ));
 
         TextView hint = new TextView(this);
-        hint.setText(label + "\n可以单独覆盖这个应用的图标。选择图片会使用透明 PNG/普通图片作为自定义图标；也可以恢复为当前图标包或系统默认图标。");
+        hint.setText(label + "\n可以单独覆盖这个应用的图标。可以从当前图标包里任选一个图标，也可以选择透明 PNG/普通图片作为自定义图标，或者恢复为当前图标包/系统默认图标。");
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
         hint.setTextColor(Color.rgb(80, 80, 80));
         hint.setGravity(Gravity.CENTER_VERTICAL);
@@ -83,7 +83,19 @@ public class CustomIconActivity extends Activity {
             }
         });
 
-        Button iconPack = addButton(root, "使用当前图标包图标");
+        Button chooseFromIconPack = addButton(root, "从当前图标包选择任意图标");
+        chooseFromIconPack.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Intent intent = new Intent(CustomIconActivity.this, IconPackIconPickerActivity.class);
+                intent.putExtra("label", label);
+                intent.putExtra("pkg", pkg);
+                intent.putExtra("cls", cls);
+                startActivity(intent);
+            }
+        });
+
+        Button iconPack = addButton(root, "使用当前图标包对应图标");
         iconPack.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {

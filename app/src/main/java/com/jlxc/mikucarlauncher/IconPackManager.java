@@ -20,7 +20,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 public final class IconPackManager {
     public static final String PREF_ICON_PACK_PKG = "icon_pack_pkg";
@@ -45,6 +47,18 @@ public final class IconPackManager {
         }
     }
 
+    public static class PackIconInfo {
+        public final String iconPackPackage;
+        public final String drawableName;
+        public final Drawable icon;
+
+        PackIconInfo(String iconPackPackage, String drawableName, Drawable icon) {
+            this.iconPackPackage = iconPackPackage;
+            this.drawableName = drawableName;
+            this.icon = icon;
+        }
+    }
+
     public static Drawable getIcon(Context context, String pkg, String cls, Drawable fallback) {
         if (context == null || pkg == null) {
             return fallback;
@@ -65,6 +79,15 @@ public final class IconPackManager {
                 if (custom != null) {
                     return custom;
                 }
+            }
+        }
+
+        if ("pack_drawable".equals(mode)) {
+            String packPkg = sp.getString(customIconPackPkgKey(componentKey), "");
+            String drawableName = sp.getString(customIconDrawableKey(componentKey), "");
+            Drawable selected = loadDrawableFromPack(context, packPkg, drawableName);
+            if (selected != null) {
+                return selected;
             }
         }
 
@@ -112,6 +135,22 @@ public final class IconPackManager {
         SharedPreferences.Editor editor = context.getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE).edit();
         editor.putString(customIconModeKey(componentKey), "custom");
         editor.putString(customIconUriKey(componentKey), uriText == null ? "" : uriText);
+        editor.remove(customIconPackPkgKey(componentKey));
+        editor.remove(customIconDrawableKey(componentKey));
+        editor.apply();
+        bumpVersion(context);
+    }
+
+    public static void setCustomIconFromIconPack(Context context, String pkg, String cls, String iconPackPkg, String drawableName) {
+        if (context == null || pkg == null || iconPackPkg == null || drawableName == null) {
+            return;
+        }
+        String componentKey = componentKey(pkg, cls);
+        SharedPreferences.Editor editor = context.getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE).edit();
+        editor.putString(customIconModeKey(componentKey), "pack_drawable");
+        editor.putString(customIconPackPkgKey(componentKey), iconPackPkg);
+        editor.putString(customIconDrawableKey(componentKey), drawableName);
+        editor.remove(customIconUriKey(componentKey));
         editor.apply();
         bumpVersion(context);
     }
@@ -125,6 +164,8 @@ public final class IconPackManager {
                 .edit()
                 .remove(customIconModeKey(componentKey))
                 .remove(customIconUriKey(componentKey))
+                .remove(customIconPackPkgKey(componentKey))
+                .remove(customIconDrawableKey(componentKey))
                 .apply();
         bumpVersion(context);
     }
@@ -138,6 +179,8 @@ public final class IconPackManager {
                 .edit()
                 .putString(customIconModeKey(componentKey), "system")
                 .remove(customIconUriKey(componentKey))
+                .remove(customIconPackPkgKey(componentKey))
+                .remove(customIconDrawableKey(componentKey))
                 .apply();
         bumpVersion(context);
     }
@@ -235,6 +278,56 @@ public final class IconPackManager {
         return result;
     }
 
+    public static List<PackIconInfo> listIconsFromPack(Context context, String iconPackPkg) {
+        final List<PackIconInfo> result = new ArrayList<PackIconInfo>();
+        if (context == null || iconPackPkg == null || iconPackPkg.length() == 0) {
+            return result;
+        }
+
+        HashMap<String, String> map = getAppFilterMap(context, iconPackPkg);
+        if (map == null || map.isEmpty()) {
+            return result;
+        }
+
+        Set<String> names = new HashSet<String>(map.values());
+        List<String> sortedNames = new ArrayList<String>(names);
+        Collections.sort(sortedNames, new Comparator<String>() {
+            @Override
+            public int compare(String a, String b) {
+                return String.valueOf(a).compareToIgnoreCase(String.valueOf(b));
+            }
+        });
+
+        for (String name : sortedNames) {
+            if (name == null || name.length() == 0) {
+                continue;
+            }
+            // 这里只列出图标名称，不预加载全部 Drawable，避免大图标包一次性占用太多内存。
+            // 真正显示时再按需加载可见图标。
+            result.add(new PackIconInfo(iconPackPkg, name, null));
+        }
+        return result;
+    }
+
+    public static Drawable loadDrawableFromPack(Context context, String iconPackPkg, String drawableName) {
+        if (context == null || iconPackPkg == null || drawableName == null || drawableName.length() == 0) {
+            return null;
+        }
+        try {
+            Resources res = context.getPackageManager().getResourcesForApplication(iconPackPkg);
+            int id = res.getIdentifier(drawableName, "drawable", iconPackPkg);
+            if (id == 0) {
+                id = res.getIdentifier(drawableName, "mipmap", iconPackPkg);
+            }
+            if (id == 0) {
+                return null;
+            }
+            return res.getDrawable(id);
+        } catch (Throwable ignored) {
+            return null;
+        }
+    }
+
     public static void bumpVersion(Context context) {
         if (context == null) {
             return;
@@ -261,6 +354,14 @@ public final class IconPackManager {
 
     private static String customIconUriKey(String componentKey) {
         return "app_custom_icon_uri_" + componentKey;
+    }
+
+    private static String customIconPackPkgKey(String componentKey) {
+        return "app_custom_icon_pack_pkg_" + componentKey;
+    }
+
+    private static String customIconDrawableKey(String componentKey) {
+        return "app_custom_icon_drawable_" + componentKey;
     }
 
     private static Drawable loadUriDrawable(Context context, String uriText) {
@@ -296,16 +397,7 @@ public final class IconPackManager {
                 return null;
             }
 
-            PackageManager pm = context.getPackageManager();
-            Resources res = pm.getResourcesForApplication(iconPackPkg);
-            int id = res.getIdentifier(drawableName, "drawable", iconPackPkg);
-            if (id == 0) {
-                id = res.getIdentifier(drawableName, "mipmap", iconPackPkg);
-            }
-            if (id == 0) {
-                return null;
-            }
-            return res.getDrawable(id);
+            return loadDrawableFromPack(context, iconPackPkg, drawableName);
         } catch (Throwable ignored) {
             return null;
         }
