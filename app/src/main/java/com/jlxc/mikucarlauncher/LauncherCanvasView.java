@@ -75,6 +75,15 @@ public class LauncherCanvasView extends View {
         invalidate();
     }
 
+    public void invalidateAppIconCaches() {
+        appListLoaded = false;
+        appListLoading = false;
+        cachedApps.clear();
+        commonAppsCache.clear();
+        lastCommonAppsLoadTime = 0L;
+        invalidate();
+    }
+
     // 固定 32:9 车机画布。背景图保持用户指定版本，不做裁切替换。
     private static final float DESIGN_W = 2560f;
     private static final float DESIGN_H = 720f;
@@ -162,10 +171,12 @@ public class LauncherCanvasView extends View {
     private boolean appListLoaded = false;
     private boolean appListLoading = false;
     private int appHiddenSignature = 0;
+    private int appIconSignature = 0;
 
     private final List<AppEntry> commonAppsCache = new ArrayList<>();
     private final List<RectF> commonAppHitRects = new ArrayList<>();
     private long lastCommonAppsLoadTime = 0L;
+    private int commonIconSignature = 0;
 
     // 应用抽屉分页与实体按键选择状态。
     private int appDrawerPage = 0;
@@ -1217,12 +1228,21 @@ public class LauncherCanvasView extends View {
         }
     }
 
-    private boolean handleCommonAppsTouch(float x, float y) {
+    private boolean handleCommonAppsTouch(float x, float y, long durationMs) {
         loadCommonAppsIfNeeded();
         for (int i = 0; i < commonAppHitRects.size() && i < commonAppsCache.size(); i++) {
             if (commonAppHitRects.get(i).contains(x, y)) {
-                AppEntry app = commonAppsCache.get(i);
-                openApp(app.label, app.pkg, app.cls);
+                final AppEntry app = commonAppsCache.get(i);
+                if (durationMs >= 650) {
+                    AppActionHelper.showAppActions(getContext(), app.label, app.pkg, app.cls, new Runnable() {
+                        @Override
+                        public void run() {
+                            invalidateAppIconCaches();
+                        }
+                    });
+                } else {
+                    openApp(app.label, app.pkg, app.cls);
+                }
                 return true;
             }
         }
@@ -1241,9 +1261,11 @@ public class LauncherCanvasView extends View {
 
     private void loadCommonAppsIfNeeded() {
         long now = System.currentTimeMillis();
-        if (!commonAppsCache.isEmpty() && now - lastCommonAppsLoadTime < 2000L) {
+        int iconSignature = IconPackManager.getIconSignature(getContext());
+        if (!commonAppsCache.isEmpty() && now - lastCommonAppsLoadTime < 2000L && iconSignature == commonIconSignature) {
             return;
         }
+        commonIconSignature = iconSignature;
 
         ensureCommonAppsConfigured();
         commonAppsCache.clear();
@@ -1278,6 +1300,8 @@ public class LauncherCanvasView extends View {
             if (label == null || label.length() == 0) {
                 label = pkg;
             }
+            label = IconPackManager.getLabel(getContext(), pkg, cls, label);
+            icon = IconPackManager.getIcon(getContext(), pkg, cls, icon);
             commonAppsCache.add(new AppEntry(label, pkg, cls, icon));
         }
         lastCommonAppsLoadTime = now;
@@ -1918,7 +1942,7 @@ public class LauncherCanvasView extends View {
 
                 RectF card4 = new RectF(210f, 546.5f, 1140f, 684.5f);
                 if (card4.contains(x, y)) {
-                    if (handleCommonAppsTouch(x, y)) {
+                    if (handleCommonAppsTouch(x, y, System.currentTimeMillis() - downTimeMs)) {
                         return true;
                     }
                 }
@@ -1982,7 +2006,12 @@ public class LauncherCanvasView extends View {
         selectedAppIndex = index;
         AppEntry app = cachedApps.get(index);
         if (durationMs >= 650) {
-            hideApp(app.pkg, app.label);
+            AppActionHelper.showAppActions(getContext(), app.label, app.pkg, app.cls, new Runnable() {
+                @Override
+                public void run() {
+                    invalidateAppIconCaches();
+                }
+            });
         } else {
             invalidate();
             openApp(app.label, app.pkg, app.cls);
@@ -2469,9 +2498,10 @@ public class LauncherCanvasView extends View {
         SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         Set<String> hidden = new HashSet<String>(sp.getStringSet("hidden_apps", new HashSet<String>()));
         final int hiddenSignature = hidden.hashCode();
+        final int iconSignature = IconPackManager.getIconSignature(getContext());
 
-        // 缓存已加载且隐藏列表没变，就直接用缓存，不要每 2 秒重新扫描。
-        if (appListLoaded && hiddenSignature == appHiddenSignature) {
+        // 缓存已加载且隐藏列表、图标包/自定义图标/重命名都没变，就直接用缓存。
+        if (appListLoaded && hiddenSignature == appHiddenSignature && iconSignature == appIconSignature) {
             return;
         }
 
@@ -2481,6 +2511,7 @@ public class LauncherCanvasView extends View {
 
         appListLoading = true;
         appHiddenSignature = hiddenSignature;
+        appIconSignature = iconSignature;
 
         final Context appContext = getContext().getApplicationContext();
         final Set<String> hiddenSnapshot = new HashSet<String>(hidden);
@@ -2538,6 +2569,9 @@ public class LauncherCanvasView extends View {
                         } catch (Throwable t) {
                             icon = null;
                         }
+
+                        label = IconPackManager.getLabel(appContext, pkg, cls, label);
+                        icon = IconPackManager.getIcon(appContext, pkg, cls, icon);
 
                         result.add(new AppEntry(label, pkg, cls, icon));
                     }

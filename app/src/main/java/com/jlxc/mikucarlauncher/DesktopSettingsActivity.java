@@ -39,6 +39,7 @@ public class DesktopSettingsActivity extends Activity {
     private TextView weatherValue;
     private TextView backgroundValue;
     private TextView nightModeValue;
+    private TextView iconPackValue;
 
     private RoundedAppWidgetHost appWidgetHost;
     private AppWidgetManager appWidgetManager;
@@ -143,6 +144,15 @@ public class DesktopSettingsActivity extends Activity {
             @Override
             public void onClick(View view) {
                 startActivity(new Intent(DesktopSettingsActivity.this, AppDrawerSettingsActivity.class));
+            }
+        });
+
+        iconPackValue = addValue(root, "应用图标包：");
+        Button iconPackSettings = addButton(root, "图标包设置 / 导入第三方图标包");
+        iconPackSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(DesktopSettingsActivity.this, IconPackSettingsActivity.class));
             }
         });
 
@@ -259,6 +269,9 @@ public class DesktopSettingsActivity extends Activity {
             int columns = sp.getInt("drawer_grid_columns", 6);
             int rows = sp.getInt("drawer_grid_rows", 3);
             drawerStyleValue.setText("应用抽屉显示： " + rows + "×" + columns + "，图标 " + iconSize + "dp，文字 " + textSize + "sp");
+        }
+        if (iconPackValue != null) {
+            iconPackValue.setText("应用图标包： " + IconPackManager.getCurrentIconPackLabel(this));
         }
         if (commonAppsValue != null) {
             StringBuilder sb = new StringBuilder();

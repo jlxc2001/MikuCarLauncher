@@ -75,7 +75,7 @@ public class AppListActivity extends Activity {
         ));
 
         TextView hint = new TextView(this);
-        hint.setText("平板式 " + rows + "×" + columns + " 网格排列。点击打开应用，长按可隐藏应用。可在 我的 → 车机桌面设置 → 应用抽屉显示设置 里调节图标、文字和网格数量。");
+        hint.setText("平板式 " + rows + "×" + columns + " 网格排列。点击打开应用，长按弹出选择、重命名、更换图标、卸载、软件详情等操作。可在 我的 → 车机桌面设置 → 应用抽屉显示设置 里调节图标、文字和网格数量。");
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
         hint.setTextColor(Color.rgb(92, 92, 92));
         hint.setGravity(Gravity.CENTER_VERTICAL);
@@ -141,6 +141,8 @@ public class AppListActivity extends Activity {
             } catch (Throwable t) {
                 icon = null;
             }
+            label = IconPackManager.getLabel(this, pkg, cls, label);
+            icon = IconPackManager.getIcon(this, pkg, cls, icon);
             appItems.add(new AppItem(label, pkg, cls, icon));
         }
     }
@@ -294,7 +296,12 @@ public class AppListActivity extends Activity {
             convertView.setOnLongClickListener(new View.OnLongClickListener() {
                 @Override
                 public boolean onLongClick(View v) {
-                    hideApp(item.pkg, item.label);
+                    AppActionHelper.showAppActions(AppListActivity.this, item.label, item.pkg, item.cls, new Runnable() {
+                        @Override
+                        public void run() {
+                            buildUi();
+                        }
+                    });
                     return true;
                 }
             });

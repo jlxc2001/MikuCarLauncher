@@ -13,6 +13,14 @@
         android:usesCleartextTraffic="true">
 
         <activity
+            android:name=".IconPackSettingsActivity"
+            android:screenOrientation="landscape"
+            android:exported="false" />
+        <activity
+            android:name=".CustomIconActivity"
+            android:screenOrientation="landscape"
+            android:exported="false" />
+        <activity
             android:name=".NightModeSettingsActivity"
             android:screenOrientation="landscape"
             android:exported="false" />

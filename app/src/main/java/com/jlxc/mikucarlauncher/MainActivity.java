@@ -299,6 +299,9 @@ public class MainActivity extends Activity {
         if (appWidgetHost != null) {
             appWidgetHost.startListening();
         }
+        if (launcherView != null) {
+            launcherView.invalidateAppIconCaches();
+        }
         if (rootLayout != null) {
             rootLayout.post(new Runnable() {
                 @Override

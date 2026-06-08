@@ -1,6 +1,7 @@
 package com.jlxc.mikucarlauncher;
 
 import android.app.Activity;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
@@ -24,6 +25,7 @@ public class AppDrawerSettingsActivity extends Activity {
     private EditText textSizeEdit;
     private EditText gridColumnsEdit;
     private EditText gridRowsEdit;
+    private TextView iconPackValue;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -71,6 +73,15 @@ public class AppDrawerSettingsActivity extends Activity {
         gridColumnsEdit = addNumberEdit(root, "网格列数", String.valueOf(sp.getInt("drawer_grid_columns", 6)));
         gridRowsEdit = addNumberEdit(root, "网格行数", String.valueOf(sp.getInt("drawer_grid_rows", 3)));
 
+        iconPackValue = addValue(root, "当前图标包： " + IconPackManager.getCurrentIconPackLabel(this));
+        Button iconPack = addButton(root, "图标包设置 / 导入第三方图标包");
+        iconPack.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(AppDrawerSettingsActivity.this, IconPackSettingsActivity.class));
+            }
+        });
+
         Button save = addButton(root, "保存应用抽屉显示设置");
         save.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -117,6 +128,22 @@ public class AppDrawerSettingsActivity extends Activity {
         lp.setMargins(0, 0, 0, dp(8));
         root.addView(edit, lp);
         return edit;
+    }
+
+    private TextView addValue(LinearLayout root, String text) {
+        TextView value = new TextView(this);
+        value.setText(text);
+        value.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
+        value.setTextColor(Color.rgb(30, 30, 30));
+        value.setGravity(Gravity.CENTER_VERTICAL);
+        value.setPadding(dp(28), 0, dp(28), 0);
+        value.setBackgroundColor(Color.WHITE);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(82)
+        );
+        lp.setMargins(0, dp(12), 0, dp(8));
+        root.addView(value, lp);
+        return value;
     }
 
     private Button addButton(LinearLayout root, String text) {
@@ -184,6 +211,9 @@ public class AppDrawerSettingsActivity extends Activity {
     protected void onResume() {
         super.onResume();
         keepFullscreen();
+        if (iconPackValue != null) {
+            iconPackValue.setText("当前图标包： " + IconPackManager.getCurrentIconPackLabel(this));
+        }
     }
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
