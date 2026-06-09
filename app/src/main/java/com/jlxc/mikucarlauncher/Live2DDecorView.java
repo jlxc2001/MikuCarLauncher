@@ -139,13 +139,15 @@ public class Live2DDecorView extends FrameLayout {
         float centerX = sp.getFloat(PREF_CENTER_X, DEFAULT_CENTER_X);
         float centerY = sp.getFloat(PREF_CENTER_Y, DEFAULT_CENTER_Y);
         float scale = clampFloat(sp.getFloat(PREF_SCALE, DEFAULT_SCALE), MIN_SCALE, MAX_SCALE);
+        boolean night = NightModeHelper.isNightMode(getContext());
+        int live2DNightDimAlpha = NightModeHelper.live2DNightDimAlpha(getContext());
 
         if (TextUtils.isEmpty(model)) {
             setVisibility(View.GONE);
             return;
         }
 
-        String url = buildViewerUrl(model, centerX, centerY, scale);
+        String url = buildViewerUrl(model, centerX, centerY, scale, night, live2DNightDimAlpha);
         if (!url.equals(lastUrl)) {
             lastUrl = url;
             webView.loadUrl(url);
@@ -276,7 +278,7 @@ public class Live2DDecorView extends FrameLayout {
         return (float) Math.sqrt(dx * dx + dy * dy);
     }
 
-    private String buildViewerUrl(String model, float centerX, float centerY, float scale) {
+    private String buildViewerUrl(String model, float centerX, float centerY, float scale, boolean night, int live2DNightDimAlpha) {
         try {
             return "file:///android_asset/live2d/live2d_decor.html"
                     + "?model=" + URLEncoder.encode(model, "UTF-8")
@@ -285,6 +287,8 @@ public class Live2DDecorView extends FrameLayout {
                     + "&scale=" + URLEncoder.encode(String.valueOf(scale), "UTF-8")
                     + "&dw=2560&dh=720"
                     + "&clip=" + (adjustMode ? "0" : "1")
+                    + "&night=" + (night ? "1" : "0")
+                    + "&dim=" + URLEncoder.encode(String.valueOf(live2DNightDimAlpha), "UTF-8")
                     + "&t=" + System.currentTimeMillis();
         } catch (Throwable t) {
             return "file:///android_asset/live2d/live2d_decor.html";

@@ -23,6 +23,7 @@ public class NightModeSettingsActivity extends Activity {
     private TextView currentModeText;
     private EditText sunriseEdit;
     private EditText sunsetEdit;
+    private EditText live2DDimEdit;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -111,6 +112,30 @@ public class NightModeSettingsActivity extends Activity {
             @Override
             public void onClick(View view) {
                 saveTimes();
+            }
+        });
+
+        TextView live2DTip = new TextView(this);
+        live2DTip.setText("夜间模式下可以单独把 Live2D 人物压暗。这里相当于只给 Live2D 人物套黑色遮罩，不影响背景图和功能卡片。建议 25~45，0 为不变暗，最高 85。");
+        live2DTip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 21);
+        live2DTip.setTextColor(Color.rgb(85, 85, 85));
+        live2DTip.setGravity(Gravity.CENTER_VERTICAL);
+        live2DTip.setSingleLine(false);
+        root.addView(live2DTip, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(118)
+        ));
+
+        addLabel(root, "Live2D 夜间变暗透明度（0~85）");
+        live2DDimEdit = addEdit(root, String.valueOf(
+                sp.getInt(NightModeHelper.PREF_LIVE2D_NIGHT_DIM_ALPHA,
+                        NightModeHelper.DEFAULT_LIVE2D_NIGHT_DIM_ALPHA)));
+        live2DDimEdit.setInputType(InputType.TYPE_CLASS_NUMBER);
+
+        Button saveLive2DDim = addButton(root, "保存 Live2D 夜间变暗透明度");
+        saveLive2DDim.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                saveLive2DDimAlpha();
             }
         });
 
@@ -212,6 +237,25 @@ public class NightModeSettingsActivity extends Activity {
         Toast.makeText(this, "已保存自动切换时间", Toast.LENGTH_SHORT).show();
     }
 
+    private void saveLive2DDimAlpha() {
+        SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+        int oldAlpha = sp.getInt(NightModeHelper.PREF_LIVE2D_NIGHT_DIM_ALPHA,
+                NightModeHelper.DEFAULT_LIVE2D_NIGHT_DIM_ALPHA);
+        int alpha = NightModeHelper.parsePercent(
+                live2DDimEdit == null ? "" : live2DDimEdit.getText().toString(),
+                oldAlpha);
+
+        sp.edit()
+                .putInt(NightModeHelper.PREF_LIVE2D_NIGHT_DIM_ALPHA, alpha)
+                .apply();
+
+        if (live2DDimEdit != null) {
+            live2DDimEdit.setText(String.valueOf(alpha));
+        }
+        refreshValues();
+        Toast.makeText(this, "已保存 Live2D 夜间变暗透明度：" + alpha + "%", Toast.LENGTH_SHORT).show();
+    }
+
     private void refreshValues() {
         if (currentModeText == null) {
             return;
@@ -219,10 +263,16 @@ public class NightModeSettingsActivity extends Activity {
         SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
         int sunrise = sp.getInt(NightModeHelper.PREF_SUNRISE_MIN, NightModeHelper.DEFAULT_SUNRISE_MIN);
         int sunset = sp.getInt(NightModeHelper.PREF_SUNSET_MIN, NightModeHelper.DEFAULT_SUNSET_MIN);
+        int live2DDimAlpha = sp.getInt(NightModeHelper.PREF_LIVE2D_NIGHT_DIM_ALPHA,
+                NightModeHelper.DEFAULT_LIVE2D_NIGHT_DIM_ALPHA);
         currentModeText.setText("当前模式： " + NightModeHelper.modeName(this)
                 + "，当前实际显示：" + (NightModeHelper.isNightMode(this) ? "夜间" : "日间")
                 + "\n日出 " + NightModeHelper.formatMinute(sunrise)
-                + " / 日落 " + NightModeHelper.formatMinute(sunset));
+                + " / 日落 " + NightModeHelper.formatMinute(sunset)
+                + "\nLive2D 夜间变暗透明度：" + NightModeHelper.clampPercent(live2DDimAlpha) + "%");
+        if (live2DDimEdit != null) {
+            live2DDimEdit.setText(String.valueOf(NightModeHelper.clampPercent(live2DDimAlpha)));
+        }
     }
 
     private void keepFullscreen() {

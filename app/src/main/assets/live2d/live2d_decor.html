@@ -51,6 +51,8 @@
   const designW = parseFloat(params.get("dw") || "2560") || 2560;
   const designH = parseFloat(params.get("dh") || "720") || 720;
   const shouldClipLive2D = params.get("clip") !== "0";
+  const isNightMode = params.get("night") === "1";
+  const nightDimAlpha = Math.max(0, Math.min(85, parseFloat(params.get("dim") || "35") || 0));
 
   let centerX = parseFloat(params.get("cx") || "1448") || 1448;
   let centerY = parseFloat(params.get("cy") || "420") || 420;
@@ -182,6 +184,20 @@
     live2DMask.beginFill(0xffffff, 1);
     live2DMask.drawRect(0, 0, window.innerWidth, Math.max(0, clipBottom));
     live2DMask.endFill();
+  }
+
+  function applyNightDimFilter() {
+    if (!app || !app.view) return;
+
+    // 只作用于 Live2D 的透明 canvas。透明区域仍然透明，不会压暗 App 背景图和功能卡片。
+    if (isNightMode && nightDimAlpha > 0) {
+      const brightness = Math.max(0.15, 1 - nightDimAlpha / 100.0);
+      app.view.style.filter = "brightness(" + Math.round(brightness * 100) + "%)";
+      app.view.style.webkitFilter = app.view.style.filter;
+    } else {
+      app.view.style.filter = "none";
+      app.view.style.webkitFilter = "none";
+    }
   }
 
   window.__mikuLive2DUpdate = function(cx, cy, scale) {
@@ -814,6 +830,7 @@
     const stage = document.getElementById("stage");
     stage.innerHTML = "";
     stage.appendChild(app.view);
+    applyNightDimFilter();
 
     const Live2DModel = PIXI.live2d.Live2DModel;
     model = await Live2DModel.from(modelUrl, {
@@ -838,6 +855,7 @@
       app.renderer.resize(window.innerWidth, window.innerHeight);
       applyLayout();
       updateLive2DMask();
+      applyNightDimFilter();
     });
 
     startRandomMotionLoop();

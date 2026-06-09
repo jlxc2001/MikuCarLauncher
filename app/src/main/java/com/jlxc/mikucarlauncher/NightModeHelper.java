@@ -9,6 +9,7 @@ public final class NightModeHelper {
     public static final String PREF_NIGHT_MODE = "night_mode";
     public static final String PREF_SUNRISE_MIN = "night_sunrise_min";
     public static final String PREF_SUNSET_MIN = "night_sunset_min";
+    public static final String PREF_LIVE2D_NIGHT_DIM_ALPHA = "live2d_night_dim_alpha";
 
     public static final int MODE_DAY = 0;
     public static final int MODE_NIGHT = 1;
@@ -16,6 +17,7 @@ public final class NightModeHelper {
 
     public static final int DEFAULT_SUNRISE_MIN = 6 * 60;
     public static final int DEFAULT_SUNSET_MIN = 18 * 60;
+    public static final int DEFAULT_LIVE2D_NIGHT_DIM_ALPHA = 35;
 
     private NightModeHelper() {
     }
@@ -92,6 +94,36 @@ public final class NightModeHelper {
         }
 
         return fallback;
+    }
+
+
+    public static int live2DNightDimAlpha(Context context) {
+        if (context == null) {
+            return DEFAULT_LIVE2D_NIGHT_DIM_ALPHA;
+        }
+        SharedPreferences sp = context.getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE);
+        return clampPercent(sp.getInt(PREF_LIVE2D_NIGHT_DIM_ALPHA, DEFAULT_LIVE2D_NIGHT_DIM_ALPHA));
+    }
+
+    public static int parsePercent(String text, int fallback) {
+        if (text == null) {
+            return fallback;
+        }
+        try {
+            String clean = text.trim().replace("%", "");
+            if (clean.length() == 0) {
+                return fallback;
+            }
+            return clampPercent(Integer.parseInt(clean));
+        } catch (Throwable ignored) {
+            return fallback;
+        }
+    }
+
+    public static int clampPercent(int value) {
+        if (value < 0) return 0;
+        if (value > 85) return 85;
+        return value;
     }
 
     public static String formatMinute(int minute) {
