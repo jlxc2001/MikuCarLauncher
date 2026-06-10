@@ -38,6 +38,8 @@ public class MainActivity extends Activity {
     private RoundedAppWidgetHost appWidgetHost;
     private AppWidgetHostView card1WidgetView;
     private int currentCard1WidgetId = -1;
+    private long lastLive2DReloadAt = 0L;
+    private boolean pendingLive2DReload = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -98,6 +100,7 @@ public class MainActivity extends Activity {
             public void run() {
                 updateLive2DVisibility();
                 updateCard1WidgetVisibility();
+                scheduleLive2DReloadIfHome(true, 650L);
             }
         });
     }
@@ -321,14 +324,57 @@ public class MainActivity extends Activity {
         updateCard1WidgetVisibility();
         if (reloadLive2D) {
             reloadLive2DOnHome();
+        } else {
+            // v60：返回键 / HOME 键只回首页，但给 Live2D 做一次轻量保险恢复。
+            // 这只重载 Live2D WebView，不重建桌面 UI，不会触发“桌面重新加载”。
+            scheduleLive2DReloadIfHome(false, 350L);
         }
     }
 
     private void reloadLive2DOnHome() {
         if (live2DView != null && live2DView.isLive2DEnabled()) {
+            live2DView.resumeLive2D();
             live2DView.reloadLive2D();
             live2DView.setVisibility(View.VISIBLE);
+            lastLive2DReloadAt = System.currentTimeMillis();
         }
+    }
+
+    private void scheduleLive2DReloadIfHome(final boolean force, long delayMs) {
+        if (rootLayout == null || live2DView == null || !live2DView.isLive2DEnabled() || !isHomePage()) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (!force && lastLive2DReloadAt > 0L && now - lastLive2DReloadAt < 12000L) {
+            // 避免短时间反复进出页面时连续 reload，防止低配车机更卡。
+            return;
+        }
+
+        if (pendingLive2DReload) {
+            return;
+        }
+
+        pendingLive2DReload = true;
+        rootLayout.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                pendingLive2DReload = false;
+                if (rootLayout == null || live2DView == null || !live2DView.isLive2DEnabled() || !isHomePage()) {
+                    return;
+                }
+
+                live2DView.setVisibility(View.VISIBLE);
+                live2DView.resumeLive2D();
+
+                if (force || lastLive2DReloadAt <= 0L || System.currentTimeMillis() - lastLive2DReloadAt >= 12000L) {
+                    live2DView.reloadLive2D();
+                    lastLive2DReloadAt = System.currentTimeMillis();
+                } else {
+                    live2DView.applySettings();
+                }
+            }
+        }, Math.max(0L, delayMs));
     }
 
     public boolean isHomePage() {
@@ -408,7 +454,9 @@ public class MainActivity extends Activity {
             rootLayout.post(new Runnable() {
                 @Override
                 public void run() {
+                    updateLive2DVisibility();
                     updateCard1WidgetVisibility();
+                    scheduleLive2DReloadIfHome(false, 600L);
                 }
             });
         }
@@ -435,6 +483,7 @@ public class MainActivity extends Activity {
             }
             updateLive2DVisibility();
             positionCard1Widget();
+            scheduleLive2DReloadIfHome(false, 450L);
         }
     }
 }

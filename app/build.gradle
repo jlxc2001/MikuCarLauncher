@@ -9,7 +9,7 @@ android {
         minSdk 23
         targetSdk 28
         versionCode 49
-        versionName '0.5.9-back-appcache-fix'
+        versionName '0.6.0-live2d-reload-fix'
     }
 
     // GitHub 网页上传不会自动删除旧文件。
