@@ -1,119 +1,292 @@
 package com.jlxc.mikucarlauncher;
 
 import android.app.Activity;
+import android.appwidget.AppWidgetHostView;
+import android.appwidget.AppWidgetManager;
+import android.appwidget.AppWidgetProviderInfo;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager;
-import android.content.pm.ResolveInfo;
-import android.graphics.Color;
 import android.os.Bundle;
-import android.view.Gravity;
-import android.view.View;
 import android.view.KeyEvent;
+import android.view.View;
+import android.view.Window;
 import android.view.WindowManager;
-import android.widget.LinearLayout;
-import android.widget.ScrollView;
-import android.widget.TextView;
+import android.widget.FrameLayout;
+import android.widget.Toast;
 
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+public class MainActivity extends Activity {
+    public static final String PREFS = "miku_car_launcher_settings";
+    public static final String PREF_CARD1_WIDGET_ID = "card1_widget_id";
+    public static final int APPWIDGET_HOST_ID = 1001;
 
-public class HiddenAppsActivity extends Activity {
-    private static final String PREFS = MainActivity.PREFS;
+    private static final float DESIGN_W = 2560f;
+    private static final float DESIGN_H = 720f;
+
+    // 1 号卡片坐标：和已确认 UI 保持一致。
+    private static final float CARD1_L = 210f;
+    private static final float CARD1_T = 35.5f;
+    private static final float CARD1_R = 730f;
+    private static final float CARD1_B = 528.5f;
+    private static final float CARD1_WIDGET_INSET = 12f;
+
+    private LauncherBackgroundView backgroundView;
+    private Live2DDecorView live2DView;
+    private LauncherCanvasView launcherView;
+    private FrameLayout rootLayout;
+    private AppWidgetManager appWidgetManager;
+    private RoundedAppWidgetHost appWidgetHost;
+    private AppWidgetHostView card1WidgetView;
+    private int currentCard1WidgetId = -1;
+    private long lastLive2DReloadAt = 0L;
+    private boolean pendingLive2DReload = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        requestWindowFeature(Window.FEATURE_NO_TITLE);
         keepFullscreen();
-        buildUi();
-    }
 
-    private void buildUi() {
-        final PackageManager pm = getPackageManager();
-        final SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
-        final Set<String> hidden = new HashSet<String>(sp.getStringSet("hidden_apps", new HashSet<String>()));
+        appWidgetManager = AppWidgetManager.getInstance(this);
+        appWidgetHost = new RoundedAppWidgetHost(this, APPWIDGET_HOST_ID);
 
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(46, 34, 46, 46);
-        root.setBackgroundColor(Color.rgb(238, 241, 246));
+        rootLayout = new FrameLayout(this);
 
-        TextView title = new TextView(this);
-        title.setText("隐藏应用抽屉里的软件");
-        title.setTextSize(32);
-        title.setTextColor(Color.rgb(20, 20, 20));
-        title.setGravity(Gravity.CENTER_VERTICAL);
-        root.addView(title, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 76
+        // 层级顺序：
+        // 1. 背景层
+        // 2. Live2D 装饰层
+        // 3. 桌面 UI / 功能卡片层
+        // 4. 1号卡片 AppWidget 层（需要时 bringToFront）
+        backgroundView = new LauncherBackgroundView(this);
+        rootLayout.addView(backgroundView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
         ));
 
-        TextView hint = new TextView(this);
-        hint.setText("点击应用即可切换显示/隐藏。隐藏后不会出现在“应用”抽屉里。");
-        hint.setTextSize(20);
-        hint.setTextColor(Color.rgb(80, 80, 80));
-        hint.setGravity(Gravity.CENTER_VERTICAL);
-        root.addView(hint, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 56
+        live2DView = new Live2DDecorView(this);
+        rootLayout.addView(live2DView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
         ));
 
-        ScrollView scrollView = new ScrollView(this);
-        LinearLayout list = new LinearLayout(this);
-        list.setOrientation(LinearLayout.VERTICAL);
-        scrollView.addView(list);
-
-        Intent queryIntent = new Intent(Intent.ACTION_MAIN, null);
-        queryIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-        List<ResolveInfo> apps = pm.queryIntentActivities(queryIntent, 0);
-        Collections.sort(apps, new Comparator<ResolveInfo>() {
+        launcherView = new LauncherCanvasView(this);
+        launcherView.setDrawBackgroundLayer(false);
+        launcherView.setOnMenuClickListener(new LauncherCanvasView.OnMenuClickListener() {
             @Override
-            public int compare(ResolveInfo a, ResolveInfo b) {
-                return String.valueOf(a.loadLabel(pm)).compareToIgnoreCase(String.valueOf(b.loadLabel(pm)));
+            public void onMenuClick(int index, String label) {
+                handleMenuClick(index);
+                updateLive2DVisibility();
+                updateCard1WidgetVisibility();
+            }
+        });
+        launcherView.setOnLive2DClickListener(new LauncherCanvasView.OnLive2DClickListener() {
+            @Override
+            public void onLive2DClick() {
+                if (live2DView != null && live2DView.getVisibility() == View.VISIBLE) {
+                    live2DView.playNextMotion();
+                }
             }
         });
 
-        for (final ResolveInfo info : apps) {
-            final String label = String.valueOf(info.loadLabel(pm));
-            final String pkg = info.activityInfo.packageName;
-
-            final TextView row = new TextView(this);
-            row.setText(makeRowText(label, pkg, hidden.contains(pkg)));
-            row.setTextSize(24);
-            row.setTextColor(Color.rgb(28, 28, 28));
-            row.setGravity(Gravity.CENTER_VERTICAL);
-            row.setPadding(32, 18, 32, 18);
-            row.setBackgroundColor(hidden.contains(pkg) ? Color.rgb(225, 231, 241) : Color.WHITE);
-            row.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View view) {
-                    Set<String> current = new HashSet<String>(sp.getStringSet("hidden_apps", new HashSet<String>()));
-                    if (current.contains(pkg)) {
-                        current.remove(pkg);
-                    } else {
-                        current.add(pkg);
-                    }
-                    sp.edit().putStringSet("hidden_apps", current).apply();
-                    buildUi();
-                }
-            });
-
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, 96
-            );
-            lp.setMargins(0, 0, 0, 14);
-            list.addView(row, lp);
-        }
-
-        root.addView(scrollView, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1
+        rootLayout.addView(launcherView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
         ));
-        setContentView(root);
+
+        setContentView(rootLayout);
+
+        rootLayout.post(new Runnable() {
+            @Override
+            public void run() {
+                updateLive2DVisibility();
+                updateCard1WidgetVisibility();
+                scheduleLive2DReloadIfHome(true, 1200L);
+            }
+        });
     }
 
-    private String makeRowText(String label, String pkg, boolean isHidden) {
-        return (isHidden ? "已隐藏  " : "显示中  ") + label + "\n" + pkg;
+    private void handleMenuClick(int index) {
+        switch (index) {
+            case 0: // 首页
+                // 只有用户主动点“首页”按钮时才重载 Live2D，返回键不触发重载。
+                showHomePage(true);
+                break;
+
+            case 1: // 导航
+                launchSelectedPackage("nav_package", "com.autonavi.amapauto", "导航软件未找到，请到 我的 → 车机桌面设置 里选择默认导航软件");
+                break;
+
+            case 2: // 音乐
+                launchMusic();
+                break;
+
+            case 3: // 车辆
+                launchComponent(
+                        "com.ts.MainUI",
+                        "com.ts.can.audi.xhd.CanAudiWithCDExdActivity",
+                        "无法打开车辆界面"
+                );
+                break;
+
+            case 4: // 全景
+                launchComponent(
+                        "com.baony.avm360",
+                        "com.baony.ui.activity.AVMBVActivity",
+                        "无法打开全景影像"
+                );
+                break;
+
+            case 5: // 应用
+                if (launcherView != null) {
+                    launcherView.invalidate();
+                }
+                break;
+
+            case 6: // 我的
+                if (launcherView != null) {
+                    launcherView.invalidate();
+                }
+                break;
+        }
+    }
+
+    private void launchMusic() {
+        SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+        String pkg = sp.getString("music_package", "");
+        if (pkg != null && pkg.length() > 0 && launchPackage(pkg)) {
+            return;
+        }
+
+        if (launchComponent(
+                "com.ts.MainUI",
+                "com.ts.bt.BtMusicActivity",
+                null
+        )) {
+            return;
+        }
+
+        showToast("音乐软件未找到，请到 我的 → 车机桌面设置 里选择默认音乐软件");
+    }
+
+    private void launchSelectedPackage(String prefKey, String defaultPackage, String failMsg) {
+        SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+        String pkg = sp.getString(prefKey, defaultPackage);
+        if (!launchPackage(pkg)) {
+            showToast(failMsg);
+        }
+    }
+
+    private boolean launchPackage(String pkg) {
+        try {
+            Intent intent = getPackageManager().getLaunchIntentForPackage(pkg);
+            if (intent == null) return false;
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return true;
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    private boolean launchComponent(String pkg, String cls, String failMsg) {
+        try {
+            Intent intent = new Intent();
+            intent.setComponent(new ComponentName(pkg, cls));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+            return true;
+        } catch (Throwable t) {
+            if (failMsg != null) {
+                showToast(failMsg);
+            }
+            return false;
+        }
+    }
+
+    private void updateLive2DVisibility() {
+        if (rootLayout == null || launcherView == null || live2DView == null) {
+            return;
+        }
+
+        live2DView.applySettings();
+
+        boolean shouldShow = launcherView.getActiveIndex() == 0 && live2DView.isLive2DEnabled();
+        live2DView.setVisibility(shouldShow ? View.VISIBLE : View.GONE);
+    }
+
+    private void updateCard1WidgetVisibility() {
+        if (rootLayout == null || launcherView == null) {
+            return;
+        }
+
+        if (launcherView.getActiveIndex() != 0) {
+            if (card1WidgetView != null) {
+                card1WidgetView.setVisibility(View.GONE);
+            }
+            return;
+        }
+
+        int widgetId = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(PREF_CARD1_WIDGET_ID, -1);
+        if (widgetId < 0) {
+            removeCard1WidgetView();
+            return;
+        }
+
+        AppWidgetProviderInfo info = appWidgetManager.getAppWidgetInfo(widgetId);
+        if (info == null) {
+            removeCard1WidgetView();
+            return;
+        }
+
+        if (card1WidgetView == null || currentCard1WidgetId != widgetId) {
+            removeCard1WidgetView();
+            currentCard1WidgetId = widgetId;
+            card1WidgetView = appWidgetHost.createView(this, widgetId, info);
+            card1WidgetView.setAppWidget(widgetId, info);
+            card1WidgetView.setPadding(0, 0, 0, 0);
+            rootLayout.addView(card1WidgetView);
+        }
+
+        positionCard1Widget();
+        card1WidgetView.setVisibility(View.VISIBLE);
+        card1WidgetView.bringToFront();
+    }
+
+    private void removeCard1WidgetView() {
+        if (card1WidgetView != null && rootLayout != null) {
+            rootLayout.removeView(card1WidgetView);
+        }
+        card1WidgetView = null;
+        currentCard1WidgetId = -1;
+    }
+
+    private void positionCard1Widget() {
+        if (card1WidgetView == null || rootLayout == null) {
+            return;
+        }
+
+        int rw = rootLayout.getWidth();
+        int rh = rootLayout.getHeight();
+        if (rw <= 0 || rh <= 0) {
+            return;
+        }
+
+        float sx = rw / DESIGN_W;
+        float sy = rh / DESIGN_H;
+
+        int left = Math.round((CARD1_L + CARD1_WIDGET_INSET) * sx);
+        int top = Math.round((CARD1_T + CARD1_WIDGET_INSET) * sy);
+        int width = Math.round((CARD1_R - CARD1_L - CARD1_WIDGET_INSET * 2f) * sx);
+        int height = Math.round((CARD1_B - CARD1_T - CARD1_WIDGET_INSET * 2f) * sy);
+
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(width, height);
+        lp.leftMargin = left;
+        lp.topMargin = top;
+        card1WidgetView.setLayoutParams(lp);
+    }
+
+    private void showToast(String msg) {
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
 
     private void keepFullscreen() {
@@ -129,18 +302,188 @@ public class HiddenAppsActivity extends Activity {
         );
     }
 
+
     @Override
-    protected void onResume() {
-        super.onResume();
-        keepFullscreen();
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (intent != null && intent.getBooleanExtra(HomeKeyHelper.EXTRA_GO_HOME, false)) {
+            // 物理 HOME / 子页面 HOME：只回首页，不重载整个桌面。
+            showHomePage(false);
+        }
     }
+
+    public void showHomePage() {
+        showHomePage(false);
+    }
+
+    public void showHomePage(boolean reloadLive2D) {
+        if (launcherView != null) {
+            launcherView.showHomePage();
+        }
+        updateLive2DVisibility();
+        updateCard1WidgetVisibility();
+        if (reloadLive2D) {
+            reloadLive2DOnHome();
+        } else {
+            // v60：返回键 / HOME 键只回首页，但给 Live2D 做一次轻量保险恢复。
+            // 这只重载 Live2D WebView，不重建桌面 UI，不会触发“桌面重新加载”。
+            scheduleLive2DReloadIfHome(false, 350L);
+        }
+    }
+
+    private void reloadLive2DOnHome() {
+        if (live2DView != null && live2DView.isLive2DEnabled()) {
+            live2DView.resumeLive2D();
+            live2DView.reloadLive2D();
+            live2DView.setVisibility(View.VISIBLE);
+            lastLive2DReloadAt = System.currentTimeMillis();
+        }
+    }
+
+    private void scheduleLive2DReloadIfHome(final boolean force, long delayMs) {
+        if (rootLayout == null || live2DView == null || !live2DView.isLive2DEnabled() || !isHomePage()) {
+            return;
+        }
+
+        long now = System.currentTimeMillis();
+        if (!force && lastLive2DReloadAt > 0L && now - lastLive2DReloadAt < 12000L) {
+            // 避免短时间反复进出页面时连续 reload，防止低配车机更卡。
+            return;
+        }
+
+        if (pendingLive2DReload) {
+            return;
+        }
+
+        pendingLive2DReload = true;
+        rootLayout.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                pendingLive2DReload = false;
+                if (rootLayout == null || live2DView == null || !live2DView.isLive2DEnabled() || !isHomePage()) {
+                    return;
+                }
+
+                live2DView.setVisibility(View.VISIBLE);
+                live2DView.resumeLive2D();
+
+                if (force || lastLive2DReloadAt <= 0L || System.currentTimeMillis() - lastLive2DReloadAt >= 12000L) {
+                    live2DView.reloadLive2D();
+                    lastLive2DReloadAt = System.currentTimeMillis();
+                } else {
+                    live2DView.applySettings();
+                }
+            }
+        }, Math.max(0L, delayMs));
+    }
+
+    public boolean isHomePage() {
+        return launcherView == null || launcherView.getActiveIndex() == 0;
+    }
+
+    @Override
+    public void onBackPressed() {
+        // Launcher 语义：返回键只回到首页，首页下返回键无效果，绝不 finish，也不露出上一个 App。
+        if (!isHomePage()) {
+            showHomePage(false);
+        }
+    }
+
+    private boolean consumeLauncherNavigationKey(int keyCode, KeyEvent event) {
+        if (!HomeKeyHelper.isHomeKey(keyCode) && !HomeKeyHelper.isBackKey(keyCode)) {
+            return false;
+        }
+
+        // DOWN / UP 全部消费，避免部分车机在 UP 阶段继续交给系统导致回到上一个 App。
+        if (event == null || event.getAction() == KeyEvent.ACTION_DOWN) {
+            if (HomeKeyHelper.isHomeKey(keyCode)) {
+                showHomePage(false);
+            } else if (HomeKeyHelper.isBackKey(keyCode)) {
+                if (!isHomePage()) {
+                    showHomePage(false);
+                }
+            }
+        }
+        return true;
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (HomeKeyHelper.handle(this, event)) {
+        if (event != null && consumeLauncherNavigationKey(event.getKeyCode(), event)) {
             return true;
         }
         return super.dispatchKeyEvent(event);
     }
 
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (consumeLauncherNavigationKey(keyCode, event)) {
+            return true;
+        }
+        if (launcherView != null && launcherView.handleHardwareKey(keyCode)) {
+            updateCard1WidgetVisibility();
+            return true;
+        }
+        return super.onKeyDown(keyCode, event);
+    }
 
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (consumeLauncherNavigationKey(keyCode, event)) {
+            return true;
+        }
+        return super.onKeyUp(keyCode, event);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        keepFullscreen();
+        if (appWidgetHost != null) {
+            appWidgetHost.startListening();
+        }
+        if (backgroundView != null) {
+            backgroundView.invalidate();
+        }
+        // 不在 onResume 主动预加载应用列表，避免从外部 App 返回桌面时低速存储重新扫描导致卡顿。
+        if (live2DView != null) {
+            live2DView.resumeLive2D();
+            live2DView.applySettings();
+        }
+        if (rootLayout != null) {
+            rootLayout.post(new Runnable() {
+                @Override
+                public void run() {
+                    updateLive2DVisibility();
+                    updateCard1WidgetVisibility();
+                    scheduleLive2DReloadIfHome(false, 600L);
+                }
+            });
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        if (appWidgetHost != null) {
+            appWidgetHost.stopListening();
+        }
+        if (live2DView != null) {
+            live2DView.pauseLive2D();
+        }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            keepFullscreen();
+            if (backgroundView != null) {
+                backgroundView.invalidate();
+            }
+            updateLive2DVisibility();
+            positionCard1Widget();
+            scheduleLive2DReloadIfHome(false, 450L);
+        }
+    }
 }

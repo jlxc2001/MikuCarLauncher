@@ -1,27 +1,27 @@
 package com.jlxc.mikucarlauncher;
 
 import android.app.Activity;
-import android.content.SharedPreferences;
+import android.appwidget.AppWidgetManager;
+import android.appwidget.AppWidgetProviderInfo;
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
-import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.KeyEvent;
 import android.view.WindowManager;
-import android.widget.Button;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
-import android.widget.Toast;
 
-public class WeatherSettingsActivity extends Activity {
-    private static final String PREFS = MainActivity.PREFS;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 
-    private EditText cityNameEdit;
-    private EditText cityCodeEdit;
+public class WidgetPickerActivity extends Activity {
+    public static final String EXTRA_PROVIDER_PACKAGE = "provider_package";
+    public static final String EXTRA_PROVIDER_CLASS = "provider_class";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -31,8 +31,6 @@ public class WeatherSettingsActivity extends Activity {
     }
 
     private void buildUi() {
-        SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
-
         ScrollView scrollView = new ScrollView(this);
         scrollView.setFillViewport(true);
         scrollView.setBackgroundColor(Color.rgb(238, 241, 246));
@@ -46,7 +44,7 @@ public class WeatherSettingsActivity extends Activity {
         ));
 
         TextView title = new TextView(this);
-        title.setText("天气卡片设置");
+        title.setText("选择 1号卡片小组件");
         title.setTextSize(TypedValue.COMPLEX_UNIT_SP, 32);
         title.setTextColor(Color.rgb(20, 20, 20));
         title.setGravity(Gravity.CENTER_VERTICAL);
@@ -54,108 +52,97 @@ public class WeatherSettingsActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(76)
         ));
 
-        TextView tip = new TextView(this);
-        tip.setText("6号卡片改用中国天气免费页面/接口，不需要高德 Key。城市 ID 填中国天气编号，例如你给的安源天气页面为 101240904。");
-        tip.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
-        tip.setTextColor(Color.rgb(90, 90, 90));
-        tip.setGravity(Gravity.CENTER_VERTICAL);
-        tip.setSingleLine(false);
-        root.addView(tip, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(112)
+        TextView hint = new TextView(this);
+        hint.setText("请选择高德地图车机版的小组件。这里使用本软件自己的小组件选择器，避免系统桌面小组件选择器直接把你带回默认桌面。");
+        hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        hint.setTextColor(Color.rgb(90, 90, 90));
+        hint.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(hint, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(70)
         ));
 
-        addLabel(root, "城市显示名称");
-        cityNameEdit = addEdit(root, sp.getString(WeatherProvider.PREF_WEATHER_CITY_NAME, WeatherProvider.DEFAULT_CITY_NAME), false);
+        List<AppWidgetProviderInfo> widgets = AppWidgetManager.getInstance(this).getInstalledProviders();
+        Collections.sort(widgets, new Comparator<AppWidgetProviderInfo>() {
+            @Override
+            public int compare(AppWidgetProviderInfo a, AppWidgetProviderInfo b) {
+                String ap = a.provider == null ? "" : a.provider.getPackageName();
+                String bp = b.provider == null ? "" : b.provider.getPackageName();
 
-        addLabel(root, "中国天气城市 ID");
-        String savedCityCode = sp.getString(WeatherProvider.PREF_WEATHER_CITY_CODE, WeatherProvider.DEFAULT_CITY_CODE);
-        if ("360300".equals(savedCityCode) || savedCityCode == null || !savedCityCode.startsWith("101")) {
-            savedCityCode = WeatherProvider.DEFAULT_CITY_CODE;
+                int aw = isAmap(ap) ? 0 : 1;
+                int bw = isAmap(bp) ? 0 : 1;
+                if (aw != bw) return aw - bw;
+
+                String al = a.label == null ? "" : a.label;
+                String bl = b.label == null ? "" : b.label;
+                return al.compareToIgnoreCase(bl);
+            }
+        });
+
+        if (widgets.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText("当前系统没有返回可用的小组件。请确认车机系统支持桌面小组件，并且高德地图车机版已安装。");
+            empty.setTextSize(TypedValue.COMPLEX_UNIT_SP, 24);
+            empty.setTextColor(Color.rgb(50, 50, 50));
+            empty.setGravity(Gravity.CENTER_VERTICAL);
+            empty.setPadding(dp(26), 0, dp(26), 0);
+            empty.setBackgroundColor(Color.WHITE);
+            root.addView(empty, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(120)
+            ));
         }
-        cityCodeEdit = addEdit(root, savedCityCode, true);
 
-        Button save = addButton(root, "保存天气设置");
-        save.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                saveSettings();
+        for (final AppWidgetProviderInfo info : widgets) {
+            if (info.provider == null) {
+                continue;
             }
-        });
 
-        Button back = addButton(root, "返回车机桌面设置");
-        back.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                finish();
-            }
-        });
+            TextView row = new TextView(this);
+            String label = info.label == null || info.label.length() == 0 ? "未命名小组件" : info.label;
+            String provider = info.provider.flattenToShortString();
+            String size = "min " + info.minWidth + "×" + info.minHeight + " / resize " + info.minResizeWidth + "×" + info.minResizeHeight;
+
+            row.setText(label + "\n" + provider + "\n" + size);
+            row.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
+            row.setTextColor(Color.rgb(28, 28, 28));
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(dp(30), dp(12), dp(30), dp(12));
+            row.setBackgroundColor(isAmap(info.provider.getPackageName()) ? Color.rgb(232, 243, 255) : Color.WHITE);
+            row.setFocusable(true);
+            row.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    Intent result = new Intent();
+                    result.putExtra(EXTRA_PROVIDER_PACKAGE, info.provider.getPackageName());
+                    result.putExtra(EXTRA_PROVIDER_CLASS, info.provider.getClassName());
+                    setResult(RESULT_OK, result);
+                    finish();
+                }
+            });
+
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(116)
+            );
+            lp.setMargins(0, dp(8), 0, dp(12));
+            root.addView(row, lp);
+        }
 
         setContentView(scrollView);
     }
 
-    private void addLabel(LinearLayout root, String text) {
-        TextView label = new TextView(this);
-        label.setText(text);
-        label.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
-        label.setTextColor(Color.rgb(70, 70, 70));
-        label.setGravity(Gravity.BOTTOM | Gravity.LEFT);
-        root.addView(label, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(46)
-        ));
+    private boolean isAmap(String pkg) {
+        if (pkg == null) return false;
+        String p = pkg.toLowerCase();
+        return p.contains("autonavi") || p.contains("amap");
     }
 
-    private EditText addEdit(LinearLayout root, String value, boolean number) {
-        EditText edit = new EditText(this);
-        edit.setText(value);
-        edit.setTextSize(TypedValue.COMPLEX_UNIT_SP, 25);
-        edit.setSingleLine(true);
-        edit.setPadding(dp(26), 0, dp(26), 0);
-        edit.setBackgroundColor(Color.WHITE);
-        edit.setInputType(number ? InputType.TYPE_CLASS_NUMBER : InputType.TYPE_CLASS_TEXT);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(76)
-        );
-        lp.setMargins(0, 0, 0, dp(16));
-        root.addView(edit, lp);
-        return edit;
-    }
-
-    private Button addButton(LinearLayout root, String text) {
-        Button button = new Button(this);
-        button.setText(text);
-        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
-        button.setGravity(Gravity.CENTER);
-        button.setAllCaps(false);
-        button.setFocusable(true);
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(78)
-        );
-        lp.setMargins(0, dp(10), 0, dp(14));
-        root.addView(button, lp);
-        return button;
-    }
-
-    private void saveSettings() {
-        String cityName = cityNameEdit.getText().toString().trim();
-        String cityCode = cityCodeEdit.getText().toString().trim();
-
-        if (cityName.length() == 0) {
-            cityName = WeatherProvider.DEFAULT_CITY_NAME;
-        }
-        if (cityCode.length() == 0) {
-            cityCode = WeatherProvider.DEFAULT_CITY_CODE;
-        }
-
-        getSharedPreferences(PREFS, MODE_PRIVATE).edit()
-                .putString(WeatherProvider.PREF_WEATHER_CITY_NAME, cityName)
-                .putString(WeatherProvider.PREF_WEATHER_CITY_CODE, cityCode)
-                .apply();
-
-        Toast.makeText(this, "天气设置已保存", Toast.LENGTH_SHORT).show();
+    private int dp(int value) {
+        return Math.round(TypedValue.applyDimension(
+                TypedValue.COMPLEX_UNIT_DIP, value, getResources().getDisplayMetrics()));
     }
 
     private void keepFullscreen() {
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         getWindow().getDecorView().setSystemUiVisibility(
                 View.SYSTEM_UI_FLAG_FULLSCREEN
                         | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
@@ -166,14 +153,11 @@ public class WeatherSettingsActivity extends Activity {
         );
     }
 
-    private int dp(float value) {
-        return (int) TypedValue.applyDimension(
-                TypedValue.COMPLEX_UNIT_DIP,
-                value,
-                getResources().getDisplayMetrics()
-        );
+    @Override
+    protected void onResume() {
+        super.onResume();
+        keepFullscreen();
     }
-
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (HomeKeyHelper.handle(this, event)) {
@@ -181,4 +165,6 @@ public class WeatherSettingsActivity extends Activity {
         }
         return super.dispatchKeyEvent(event);
     }
+
+
 }

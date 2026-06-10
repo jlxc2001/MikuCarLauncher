@@ -459,3 +459,13 @@ A4L 车机桌面项目。
 - 返回键 / HOME 键仍然只回首页，不 finish Launcher，不露出上一个 App。
 - 在首页按返回键仍然无操作，不触发桌面重建，也不强制重载 Live2D。
 - 加入 12 秒防抖，避免低配车机短时间内反复 reload Live2D。
+
+
+## v61
+- 修复 v60 / v59 后 Live2D 在首页和预览页都无法加载的问题。
+- 回滚 Live2D WebView 页面和 Live2D 渲染逻辑到 v56 稳定加载版本。
+- 保留 v60 的返回键 / HOME 键 / 应用缓存修复。
+- 保留 Live2D 专用遮罩、默认动作/表情、点击人物切换动作等 v56 前后的核心功能。
+- 暂时移除 v58 的低画质 / 限帧 / low-power WebGL 优化参数，因为这些参数在部分车机 WebView 上可能导致 Live2D canvas 初始化失败。
+- 保留单独 reloadLive2D 机制：点击首页、首次进入首页、从外部 App 回桌面仍会只重载 Live2D WebView，不重建桌面 UI。
+- 首次首页 Live2D 保险 reload 延迟调到 1200ms，避免车机 WebView 初始化较慢时加载过早失败。

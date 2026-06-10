@@ -1,282 +1,146 @@
 package com.jlxc.mikucarlauncher;
 
-import android.content.ComponentName;
-import android.content.Context;
+import android.app.Activity;
 import android.content.Intent;
-import android.content.ServiceConnection;
-import android.os.Handler;
-import android.os.HandlerThread;
-import android.os.IBinder;
-import android.os.Parcel;
-import android.os.SystemClock;
+import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
+import android.graphics.Color;
+import android.os.Bundle;
+import android.view.Gravity;
+import android.view.View;
+import android.view.KeyEvent;
+import android.view.WindowManager;
+import android.widget.LinearLayout;
+import android.widget.ScrollView;
+import android.widget.TextView;
 
-public class VehicleDataProvider {
-    private static final String DESCRIPTOR = "com.ts.can.carinfo.ICarInfoService";
-    private static final String SERVICE_PACKAGE = "com.ts.MainUI";
-    private static final String SERVICE_CLASS = "com.ts.can.carinfo.CarInfoService";
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
-    // 低频轮询，避免再次把 MainApp 打崩。
-    private static final long POLL_INTERVAL_MS = 1500L;
+public class HiddenAppsActivity extends Activity {
+    private static final String PREFS = MainActivity.PREFS;
 
-    private final Context context;
-    private final Object lock = new Object();
-
-    private HandlerThread workerThread;
-    private Handler workerHandler;
-    private IBinder carInfoBinder;
-    private boolean bound;
-    private boolean started;
-    private int baseInfoTransactionCode = -1;
-
-    private volatile Snapshot snapshot = Snapshot.empty();
-
-    public VehicleDataProvider(Context context) {
-        this.context = context.getApplicationContext();
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        keepFullscreen();
+        buildUi();
     }
 
-    public Snapshot getSnapshot() {
-        return snapshot;
-    }
+    private void buildUi() {
+        final PackageManager pm = getPackageManager();
+        final SharedPreferences sp = getSharedPreferences(PREFS, MODE_PRIVATE);
+        final Set<String> hidden = new HashSet<String>(sp.getStringSet("hidden_apps", new HashSet<String>()));
 
-    public void start() {
-        synchronized (lock) {
-            if (started) {
-                return;
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(46, 34, 46, 46);
+        root.setBackgroundColor(Color.rgb(238, 241, 246));
+
+        TextView title = new TextView(this);
+        title.setText("隐藏应用抽屉里的软件");
+        title.setTextSize(32);
+        title.setTextColor(Color.rgb(20, 20, 20));
+        title.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(title, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 76
+        ));
+
+        TextView hint = new TextView(this);
+        hint.setText("点击应用即可切换显示/隐藏。隐藏后不会出现在“应用”抽屉里。");
+        hint.setTextSize(20);
+        hint.setTextColor(Color.rgb(80, 80, 80));
+        hint.setGravity(Gravity.CENTER_VERTICAL);
+        root.addView(hint, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 56
+        ));
+
+        ScrollView scrollView = new ScrollView(this);
+        LinearLayout list = new LinearLayout(this);
+        list.setOrientation(LinearLayout.VERTICAL);
+        scrollView.addView(list);
+
+        Intent queryIntent = new Intent(Intent.ACTION_MAIN, null);
+        queryIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+        List<ResolveInfo> apps = pm.queryIntentActivities(queryIntent, 0);
+        Collections.sort(apps, new Comparator<ResolveInfo>() {
+            @Override
+            public int compare(ResolveInfo a, ResolveInfo b) {
+                return String.valueOf(a.loadLabel(pm)).compareToIgnoreCase(String.valueOf(b.loadLabel(pm)));
             }
-            started = true;
-        }
+        });
 
-        if (workerThread == null) {
-            workerThread = new HandlerThread("MikuCarLauncher-VehicleData");
-            workerThread.start();
-            workerHandler = new Handler(workerThread.getLooper());
-        }
+        for (final ResolveInfo info : apps) {
+            final String label = String.valueOf(info.loadLabel(pm));
+            final String pkg = info.activityInfo.packageName;
 
-        bindCarInfoService();
-        workerHandler.removeCallbacks(pollRunnable);
-        workerHandler.post(pollRunnable);
-    }
-
-    public void stop() {
-        synchronized (lock) {
-            started = false;
-        }
-
-        try {
-            context.unbindService(connection);
-        } catch (Throwable ignored) {
-        }
-        bound = false;
-        carInfoBinder = null;
-
-        if (workerThread != null) {
-            workerThread.quitSafely();
-            workerThread = null;
-        }
-        workerHandler = null;
-    }
-
-    private void bindCarInfoService() {
-        if (bound) {
-            return;
-        }
-
-        try {
-            Intent intent = new Intent();
-            intent.setComponent(new ComponentName(SERVICE_PACKAGE, SERVICE_CLASS));
-            bound = context.bindService(intent, connection, Context.BIND_AUTO_CREATE);
-        } catch (Throwable ignored) {
-            bound = false;
-        }
-    }
-
-    private final ServiceConnection connection = new ServiceConnection() {
-        @Override
-        public void onServiceConnected(ComponentName name, IBinder service) {
-            carInfoBinder = service;
-            baseInfoTransactionCode = -1;
-        }
-
-        @Override
-        public void onServiceDisconnected(ComponentName name) {
-            carInfoBinder = null;
-            baseInfoTransactionCode = -1;
-            bound = false;
-        }
-    };
-
-    private final Runnable pollRunnable = new Runnable() {
-        @Override
-        public void run() {
-            try {
-                pollOnce();
-            } catch (Throwable ignored) {
-            }
-
-            Handler handler = workerHandler;
-            synchronized (lock) {
-                if (started && handler != null) {
-                    handler.postDelayed(this, POLL_INTERVAL_MS);
+            final TextView row = new TextView(this);
+            row.setText(makeRowText(label, pkg, hidden.contains(pkg)));
+            row.setTextSize(24);
+            row.setTextColor(Color.rgb(28, 28, 28));
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(32, 18, 32, 18);
+            row.setBackgroundColor(hidden.contains(pkg) ? Color.rgb(225, 231, 241) : Color.WHITE);
+            row.setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    Set<String> current = new HashSet<String>(sp.getStringSet("hidden_apps", new HashSet<String>()));
+                    if (current.contains(pkg)) {
+                        current.remove(pkg);
+                    } else {
+                        current.add(pkg);
+                    }
+                    sp.edit().putStringSet("hidden_apps", current).apply();
+                    buildUi();
                 }
-            }
-        }
-    };
+            });
 
-    private void pollOnce() {
-        if (carInfoBinder == null || !carInfoBinder.isBinderAlive()) {
-            carInfoBinder = null;
-            bound = false;
-            bindCarInfoService();
-            return;
-        }
-
-        int[] baseInfo = requestBaseInfo();
-        if (baseInfo == null || baseInfo.length < 82) {
-            return;
-        }
-
-        snapshot = Snapshot.fromBaseInfo(baseInfo);
-    }
-
-    private int[] requestBaseInfo() {
-        if (baseInfoTransactionCode > 0) {
-            int[] result = transactIntArray(baseInfoTransactionCode);
-            if (isBaseInfo(result)) {
-                return result;
-            }
-            baseInfoTransactionCode = -1;
-        }
-
-        // 不引入 com.ts.can.carinfo.ICarInfoService，避免 GitHub Actions 编译失败。
-        // 用 Binder transaction 探测一次 requestCarBaseInfo() 的交易码，找到 int[82] 后缓存。
-        for (int code = 1; code <= 50; code++) {
-            int[] result = transactIntArray(code);
-            if (isBaseInfo(result)) {
-                baseInfoTransactionCode = code;
-                return result;
-            }
-        }
-
-        return null;
-    }
-
-    private boolean isBaseInfo(int[] data) {
-        return data != null && data.length >= 82;
-    }
-
-    private int[] transactIntArray(int code) {
-        IBinder binder = carInfoBinder;
-        if (binder == null) {
-            return null;
-        }
-
-        Parcel data = Parcel.obtain();
-        Parcel reply = Parcel.obtain();
-        try {
-            data.writeInterfaceToken(DESCRIPTOR);
-            boolean ok = binder.transact(code, data, reply, 0);
-            if (!ok) {
-                return null;
-            }
-            reply.readException();
-            return reply.createIntArray();
-        } catch (Throwable ignored) {
-            return null;
-        } finally {
-            data.recycle();
-            reply.recycle();
-        }
-    }
-
-    public static class Snapshot {
-        public final boolean valid;
-        public final int rangeKm;
-        public final int fuelLevel;
-        public final int speed;
-        public final int rpm;
-        public final boolean frontLeftDoorOpen;
-        public final boolean frontRightDoorOpen;
-        public final boolean rearLeftDoorOpen;
-        public final boolean rearRightDoorOpen;
-        public final boolean trunkOpen;
-        public final boolean hoodOpen;
-        public final long updateElapsedMs;
-
-        private Snapshot(
-                boolean valid,
-                int rangeKm,
-                int fuelLevel,
-                int speed,
-                int rpm,
-                boolean frontLeftDoorOpen,
-                boolean frontRightDoorOpen,
-                boolean rearLeftDoorOpen,
-                boolean rearRightDoorOpen,
-                boolean trunkOpen,
-                boolean hoodOpen,
-                long updateElapsedMs
-        ) {
-            this.valid = valid;
-            this.rangeKm = rangeKm;
-            this.fuelLevel = fuelLevel;
-            this.speed = speed;
-            this.rpm = rpm;
-            this.frontLeftDoorOpen = frontLeftDoorOpen;
-            this.frontRightDoorOpen = frontRightDoorOpen;
-            this.rearLeftDoorOpen = rearLeftDoorOpen;
-            this.rearRightDoorOpen = rearRightDoorOpen;
-            this.trunkOpen = trunkOpen;
-            this.hoodOpen = hoodOpen;
-            this.updateElapsedMs = updateElapsedMs;
-        }
-
-        public static Snapshot empty() {
-            return new Snapshot(false, -1, -1, -1, -1, false, false, false, false, false, false, 0L);
-        }
-
-        public static Snapshot fromBaseInfo(int[] b) {
-            int range = safeValue(b, 13);
-            int fuel = safeValue(b, 30);
-            int speed = safeValue(b, 2);
-            int rpm = safeValue(b, 3);
-
-            // 你前面确认过：61~64 四门，65 后备箱，66 引擎盖。
-            boolean fl = valueIsOpen(b, 61);
-            boolean fr = valueIsOpen(b, 62);
-            boolean rl = valueIsOpen(b, 63);
-            boolean rr = valueIsOpen(b, 64);
-            boolean trunk = valueIsOpen(b, 65);
-            boolean hood = valueIsOpen(b, 66);
-
-            return new Snapshot(
-                    true,
-                    range,
-                    fuel,
-                    speed,
-                    rpm,
-                    fl,
-                    fr,
-                    rl,
-                    rr,
-                    trunk,
-                    hood,
-                    SystemClock.elapsedRealtime()
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, 96
             );
+            lp.setMargins(0, 0, 0, 14);
+            list.addView(row, lp);
         }
 
-        private static int safeValue(int[] b, int index) {
-            if (b == null || index < 0 || index >= b.length) {
-                return -1;
-            }
-            int v = b[index];
-            if (v < 0 || v > 999999) {
-                return -1;
-            }
-            return v;
-        }
-
-        private static boolean valueIsOpen(int[] b, int index) {
-            return b != null && index >= 0 && index < b.length && b[index] == 1;
-        }
+        root.addView(scrollView, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1
+        ));
+        setContentView(root);
     }
+
+    private String makeRowText(String label, String pkg, boolean isHidden) {
+        return (isHidden ? "已隐藏  " : "显示中  ") + label + "\n" + pkg;
+    }
+
+    private void keepFullscreen() {
+        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN, WindowManager.LayoutParams.FLAG_FULLSCREEN);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        getWindow().getDecorView().setSystemUiVisibility(
+                View.SYSTEM_UI_FLAG_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                        | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                        | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+        );
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        keepFullscreen();
+    }
+    @Override
+    public boolean dispatchKeyEvent(KeyEvent event) {
+        if (HomeKeyHelper.handle(this, event)) {
+            return true;
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+
 }
