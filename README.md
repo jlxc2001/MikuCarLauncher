@@ -423,3 +423,15 @@ A4L 车机桌面项目。
 - 在“夜间模式设置”中新增“Live2D 夜间变暗透明度（0~85）”。
 - 默认透明度为 35%，0 表示夜间不压暗 Live2D，85 为最大压暗。
 - 实现方式为只给 Live2D 的透明 canvas 加亮度滤镜，相当于只对 Live2D 人物套一层黑色遮罩。透明区域仍然透明，不会遮挡 App 背景图片，也不会影响任何功能卡片。
+
+## v58
+- Live2D 低配车机优化：降低 Pixi 渲染分辨率、关闭抗锯齿、限制帧率到约 20fps，并使用 low-power 渲染偏好。
+- Live2D WebView 优化：开启缓存优先、绑定 Renderer 优先级，增加 WebGL context lost/restored 处理。
+- 修复 Live2D 频繁 applySettings 导致重复 reload 的问题：普通设置刷新不再每次带时间戳重载，只有主动 reload 才改变 reload token。
+- 点击左侧“首页”按钮、返回键从其他页回首页、HomeKeyHelper 回首页时，会主动 reload Live2D，防止低配车机把模型卡没后无法恢复。
+- Launcher 返回键语义修正：返回键不再退回上一个应用；在本软件内按返回键回首页，首页下返回键无操作。
+- MainActivity 增加 singleTask / clearTaskOnLaunch，作为 HOME Launcher 时尽量回到唯一桌面实例。
+- 所有子页面继续通过 HomeKeyHelper 支持实体 HOME 键回到首页。
+- 应用抽屉加入“APP 略缩图缓存”：首次扫描会把应用图标渲染成 PNG 缓存在应用内部目录，之后优先读取本地略缩图和应用索引，避免每次现场 loadIcon。
+- 应用抽屉缓存会在检测到安装/卸载/更新应用后后台重建；图标包、隐藏应用、重命名变化也会触发重建。
+- 应用抽屉显示设置新增：手动更新 APP 略缩图缓存、清空 APP 略缩图缓存。
