@@ -100,7 +100,6 @@ public class MainActivity extends Activity {
             public void run() {
                 updateLive2DVisibility();
                 updateCard1WidgetVisibility();
-                scheduleLive2DReloadIfHome(true, 1200L);
             }
         });
     }
@@ -108,8 +107,13 @@ public class MainActivity extends Activity {
     private void handleMenuClick(int index) {
         switch (index) {
             case 0: // 首页
-                // 只有用户主动点“首页”按钮时才重载 Live2D，返回键不触发重载。
-                showHomePage(true);
+                // v64：从其它页面回首页不重载 Live2D，避免人物闪一下。
+                // 如果已经在首页，再点一次首页按钮，才作为“手动修复”重载 Live2D。
+                if (isHomePage()) {
+                    reloadLive2DOnHome();
+                } else {
+                    showHomePage(false);
+                }
                 break;
 
             case 1: // 导航
@@ -324,10 +328,6 @@ public class MainActivity extends Activity {
         updateCard1WidgetVisibility();
         if (reloadLive2D) {
             reloadLive2DOnHome();
-        } else {
-            // v60：返回键 / HOME 键只回首页，但给 Live2D 做一次轻量保险恢复。
-            // 这只重载 Live2D WebView，不重建桌面 UI，不会触发“桌面重新加载”。
-            scheduleLive2DReloadIfHome(false, 350L);
         }
     }
 
@@ -456,7 +456,6 @@ public class MainActivity extends Activity {
                 public void run() {
                     updateLive2DVisibility();
                     updateCard1WidgetVisibility();
-                    scheduleLive2DReloadIfHome(false, 600L);
                 }
             });
         }
@@ -483,7 +482,6 @@ public class MainActivity extends Activity {
             }
             updateLive2DVisibility();
             positionCard1Widget();
-            scheduleLive2DReloadIfHome(false, 450L);
         }
     }
 }

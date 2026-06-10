@@ -146,13 +146,15 @@ public class Live2DDecorView extends FrameLayout {
         float scale = clampFloat(sp.getFloat(PREF_SCALE, DEFAULT_SCALE), MIN_SCALE, MAX_SCALE);
         float renderQuality = clampFloat(sp.getFloat(PREF_RENDER_QUALITY, DEFAULT_RENDER_QUALITY), 0.5f, 2.0f);
         int targetFps = clampInt(sp.getInt(PREF_TARGET_FPS, DEFAULT_TARGET_FPS), 15, 60);
+        boolean night = NightModeHelper.isNightMode(getContext());
+        int live2DNightDimAlpha = NightModeHelper.live2DNightDimAlpha(getContext());
 
         if (TextUtils.isEmpty(model)) {
             setVisibility(View.GONE);
             return;
         }
 
-        String url = buildViewerUrl(model, centerX, centerY, scale, renderQuality, targetFps);
+        String url = buildViewerUrl(model, centerX, centerY, scale, renderQuality, targetFps, night, live2DNightDimAlpha);
         if (!url.equals(lastUrl)) {
             lastUrl = url;
             webView.loadUrl(url);
@@ -311,7 +313,7 @@ public class Live2DDecorView extends FrameLayout {
         return (float) Math.sqrt(dx * dx + dy * dy);
     }
 
-    private String buildViewerUrl(String model, float centerX, float centerY, float scale, float renderQuality, int targetFps) {
+    private String buildViewerUrl(String model, float centerX, float centerY, float scale, float renderQuality, int targetFps, boolean night, int live2DNightDimAlpha) {
         try {
             return "file:///android_asset/live2d/live2d_decor.html"
                     + "?model=" + URLEncoder.encode(model, "UTF-8")
@@ -322,6 +324,8 @@ public class Live2DDecorView extends FrameLayout {
                     + "&clip=" + (adjustMode ? "0" : "1")
                     + "&quality=" + URLEncoder.encode(String.valueOf(renderQuality), "UTF-8")
                     + "&fps=" + URLEncoder.encode(String.valueOf(targetFps), "UTF-8")
+                    + "&night=" + (night ? "1" : "0")
+                    + "&dim=" + URLEncoder.encode(String.valueOf(live2DNightDimAlpha), "UTF-8")
                     + "&reload=" + reloadToken;
         } catch (Throwable t) {
             return "file:///android_asset/live2d/live2d_decor.html";

@@ -493,3 +493,16 @@ A4L 车机桌面项目。
 - 调整页重载模型时不再对 Live2DView 执行 bringToFront。
 - 新增 bringAdjustOverlaysToFront()，每次重载、恢复默认、onResume、窗口重新获得焦点后，都会把模拟卡片层、提示文字、底部按钮栏重新置顶。
 - Live2D 首页显示、画质倍率、帧率设置不变。
+
+
+## v64
+- 修复 Live2D 在桌面首页显示时会“闪一下”的问题。
+- 不再在首次进入首页、onResume、窗口重新获得焦点时自动强制 reload Live2D。
+- 从应用抽屉 / 我的 / 子页面回首页时，只显示现有 Live2D，不重新加载。
+- 保留手动修复机制：如果已经在首页，再点一次左侧“首页”按钮，才会手动 reload Live2D。
+- 恢复夜间模式下 Live2D 单独变暗：
+  - Live2DDecorView 重新传入 `night` 和 `dim` 参数。
+  - live2d_decor.html 对 Live2D canvas 使用 brightness filter。
+  - 只压暗 Live2D 人物，不压暗 App 背景图和功能卡片。
+- 保留 v62 的画质倍率和帧率设置。
+- 保留 v63 的调整页按钮层级修复。
