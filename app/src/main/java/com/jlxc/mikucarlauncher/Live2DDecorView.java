@@ -28,6 +28,8 @@ public class Live2DDecorView extends FrameLayout {
     public static final String PREF_CENTER_X = "live2d_center_x";
     public static final String PREF_CENTER_Y = "live2d_center_y";
     public static final String PREF_SCALE = "live2d_scale";
+    public static final String PREF_RENDER_QUALITY = "live2d_render_quality";
+    public static final String PREF_TARGET_FPS = "live2d_target_fps";
 
     public static final float DEFAULT_X = 1188f;
     public static final float DEFAULT_Y = 246f;
@@ -36,6 +38,8 @@ public class Live2DDecorView extends FrameLayout {
     public static final float DEFAULT_CENTER_X = DEFAULT_X + DEFAULT_W / 2f;
     public static final float DEFAULT_CENTER_Y = DEFAULT_Y + DEFAULT_H * 0.58f;
     public static final float DEFAULT_SCALE = 1.0f;
+    public static final float DEFAULT_RENDER_QUALITY = 1.0f;
+    public static final int DEFAULT_TARGET_FPS = 60;
 
     private static final float DESIGN_W = 2560f;
     private static final float DESIGN_H = 720f;
@@ -91,15 +95,6 @@ public class Live2DDecorView extends FrameLayout {
         settings.setAllowContentAccess(true);
         settings.setLoadsImagesAutomatically(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        // 低配车机优化：减少缓存/缩放开销，WebView Renderer 尽量保持绑定，降低 Live2D 被系统回收后“卡没”的概率。
-        settings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
-        webView.setInitialScale(100);
-        try {
-            if (android.os.Build.VERSION.SDK_INT >= 26) {
-                webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true);
-            }
-        } catch (Throwable ignored) {
-        }
         try {
             settings.setAllowFileAccessFromFileURLs(true);
             settings.setAllowUniversalAccessFromFileURLs(true);
@@ -149,15 +144,15 @@ public class Live2DDecorView extends FrameLayout {
         float centerX = sp.getFloat(PREF_CENTER_X, DEFAULT_CENTER_X);
         float centerY = sp.getFloat(PREF_CENTER_Y, DEFAULT_CENTER_Y);
         float scale = clampFloat(sp.getFloat(PREF_SCALE, DEFAULT_SCALE), MIN_SCALE, MAX_SCALE);
-        boolean night = NightModeHelper.isNightMode(getContext());
-        int live2DNightDimAlpha = NightModeHelper.live2DNightDimAlpha(getContext());
+        float renderQuality = clampFloat(sp.getFloat(PREF_RENDER_QUALITY, DEFAULT_RENDER_QUALITY), 0.5f, 2.0f);
+        int targetFps = clampInt(sp.getInt(PREF_TARGET_FPS, DEFAULT_TARGET_FPS), 15, 60);
 
         if (TextUtils.isEmpty(model)) {
             setVisibility(View.GONE);
             return;
         }
 
-        String url = buildViewerUrl(model, centerX, centerY, scale, night, live2DNightDimAlpha);
+        String url = buildViewerUrl(model, centerX, centerY, scale, renderQuality, targetFps);
         if (!url.equals(lastUrl)) {
             lastUrl = url;
             webView.loadUrl(url);
@@ -188,6 +183,7 @@ public class Live2DDecorView extends FrameLayout {
             lastUrl = "";
             webView.stopLoading();
             webView.clearHistory();
+            // 不清空所有缓存，避免低速存储反而更慢；只让当前页面重新载入。
         } catch (Throwable ignored) {
         }
         applySettings();
@@ -315,7 +311,7 @@ public class Live2DDecorView extends FrameLayout {
         return (float) Math.sqrt(dx * dx + dy * dy);
     }
 
-    private String buildViewerUrl(String model, float centerX, float centerY, float scale, boolean night, int live2DNightDimAlpha) {
+    private String buildViewerUrl(String model, float centerX, float centerY, float scale, float renderQuality, int targetFps) {
         try {
             return "file:///android_asset/live2d/live2d_decor.html"
                     + "?model=" + URLEncoder.encode(model, "UTF-8")
@@ -324,13 +320,16 @@ public class Live2DDecorView extends FrameLayout {
                     + "&scale=" + URLEncoder.encode(String.valueOf(scale), "UTF-8")
                     + "&dw=2560&dh=720"
                     + "&clip=" + (adjustMode ? "0" : "1")
-                    + "&night=" + (night ? "1" : "0")
-                    + "&dim=" + URLEncoder.encode(String.valueOf(live2DNightDimAlpha), "UTF-8")
-                    + "&quality=0.62&fps=20"
+                    + "&quality=" + URLEncoder.encode(String.valueOf(renderQuality), "UTF-8")
+                    + "&fps=" + URLEncoder.encode(String.valueOf(targetFps), "UTF-8")
                     + "&reload=" + reloadToken;
         } catch (Throwable t) {
             return "file:///android_asset/live2d/live2d_decor.html";
         }
+    }
+
+    private int clampInt(int v, int min, int max) {
+        return Math.max(min, Math.min(max, v));
     }
 
     private String normalizeModelPath(String raw) {

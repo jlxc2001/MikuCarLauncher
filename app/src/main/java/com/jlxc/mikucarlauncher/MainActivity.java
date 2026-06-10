@@ -100,7 +100,7 @@ public class MainActivity extends Activity {
             public void run() {
                 updateLive2DVisibility();
                 updateCard1WidgetVisibility();
-                scheduleLive2DReloadIfHome(true, 650L);
+                scheduleLive2DReloadIfHome(true, 1200L);
             }
         });
     }

@@ -51,12 +51,10 @@
   const designW = parseFloat(params.get("dw") || "2560") || 2560;
   const designH = parseFloat(params.get("dh") || "720") || 720;
   const shouldClipLive2D = params.get("clip") !== "0";
-  const isNightMode = params.get("night") === "1";
-  const nightDimAlpha = Math.max(0, Math.min(85, parseFloat(params.get("dim") || "35") || 0));
-
-  // v58 低配车机优化：降低渲染分辨率和帧率，优先保证模型不被卡没。
-  const renderQuality = Math.max(0.45, Math.min(1.0, parseFloat(params.get("quality") || "0.62") || 0.62));
-  const targetFps = Math.max(12, Math.min(30, parseInt(params.get("fps") || "20", 10) || 20));
+  // v62：画质倍率和帧率可在设置中调节。
+  // 画质倍率 1.0 = 当前稳定默认，2.0 = 更清晰但更吃性能。
+  const renderQuality = Math.max(0.5, Math.min(2.0, parseFloat(params.get("quality") || "1.0") || 1.0));
+  const targetFps = Math.max(15, Math.min(60, parseInt(params.get("fps") || "60", 10) || 60));
 
   let centerX = parseFloat(params.get("cx") || "1448") || 1448;
   let centerY = parseFloat(params.get("cy") || "420") || 420;
@@ -188,20 +186,6 @@
     live2DMask.beginFill(0xffffff, 1);
     live2DMask.drawRect(0, 0, window.innerWidth, Math.max(0, clipBottom));
     live2DMask.endFill();
-  }
-
-  function applyNightDimFilter() {
-    if (!app || !app.view) return;
-
-    // 只作用于 Live2D 的透明 canvas。透明区域仍然透明，不会压暗 App 背景图和功能卡片。
-    if (isNightMode && nightDimAlpha > 0) {
-      const brightness = Math.max(0.15, 1 - nightDimAlpha / 100.0);
-      app.view.style.filter = "brightness(" + Math.round(brightness * 100) + "%)";
-      app.view.style.webkitFilter = app.view.style.filter;
-    } else {
-      app.view.style.filter = "none";
-      app.view.style.webkitFilter = "none";
-    }
   }
 
   window.__mikuLive2DUpdate = function(cx, cy, scale) {
@@ -821,12 +805,8 @@
       throw new Error("Live2D runtime is not ready");
     }
 
-    try {
-      if (PIXI.settings) {
-        PIXI.settings.RESOLUTION = renderQuality;
-        PIXI.settings.SCALE_MODE = PIXI.SCALE_MODES.LINEAR;
-      }
-    } catch (e) {}
+    const baseDeviceRatio = window.devicePixelRatio || 1;
+    const rendererResolution = Math.max(0.5, Math.min(3.0, baseDeviceRatio * renderQuality));
 
     app = new PIXI.Application({
       view: document.createElement("canvas"),
@@ -834,31 +814,18 @@
       height: window.innerHeight,
       transparent: true,
       autoDensity: true,
-      resolution: renderQuality,
-      antialias: false,
-      powerPreference: "low-power",
-      backgroundAlpha: 0,
-      preserveDrawingBuffer: false
+      resolution: rendererResolution,
+      antialias: renderQuality >= 0.9
     });
 
     try {
       app.ticker.maxFPS = targetFps;
-      app.ticker.minFPS = 8;
+      app.ticker.minFPS = Math.min(12, targetFps);
     } catch (e) {}
 
     const stage = document.getElementById("stage");
     stage.innerHTML = "";
     stage.appendChild(app.view);
-    try {
-      app.view.addEventListener("webglcontextlost", function(e) {
-        try { e.preventDefault(); } catch (_) {}
-        showMsg("Live2D 渲染被系统回收，正在等待恢复…");
-      }, false);
-      app.view.addEventListener("webglcontextrestored", function() {
-        try { location.reload(); } catch (_) {}
-      }, false);
-    } catch (e) {}
-    applyNightDimFilter();
 
     const Live2DModel = PIXI.live2d.Live2DModel;
     model = await Live2DModel.from(modelUrl, {
@@ -883,7 +850,6 @@
       app.renderer.resize(window.innerWidth, window.innerHeight);
       applyLayout();
       updateLive2DMask();
-      applyNightDimFilter();
     });
 
     startRandomMotionLoop();

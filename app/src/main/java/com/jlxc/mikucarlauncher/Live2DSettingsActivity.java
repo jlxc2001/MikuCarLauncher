@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.text.InputType;
 import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -14,6 +15,7 @@ import android.view.View;
 import android.view.WindowManager;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
@@ -24,6 +26,8 @@ public class Live2DSettingsActivity extends Activity {
 
     private CheckBox enabledCheck;
     private TextView modelValue;
+    private EditText qualityEdit;
+    private EditText fpsEdit;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -61,14 +65,14 @@ public class Live2DSettingsActivity extends Activity {
                 + "点击“选择 Live2D 模型文件夹”，选择包含 model3.json / model.json 的模型文件夹即可。"
                 + "本软件会把模型文件夹复制到应用内部目录，避免 WebView 读取 content:// 或外部存储时显示失败。\\n"
                 + "位置和大小不用输入数值，点击“拖动/捏合调整位置大小”后直接用手操作。\\n"
-                + "v56 修复底部露腿遮罩，修正默认 motion3.json 计数，并加入更明显的 ViewerEX 风格默认待机。"
-                + "显示时会额外加入随机眨眼，点击人物会切换下一个动作并随机切换表情。");
+                + "v62 增加画质倍率和帧率设置。画质倍率最高 2.0，帧率最高 60。"
+                + "如果调整页面第一次加载不出来，会自动延迟重载，也可以点调整页里的“重载模型”。");
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         hint.setTextColor(Color.rgb(82, 82, 82));
         hint.setGravity(Gravity.CENTER_VERTICAL);
         hint.setSingleLine(false);
         root.addView(hint, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(132)
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(146)
         ));
 
         enabledCheck = new CheckBox(this);
@@ -83,6 +87,16 @@ public class Live2DSettingsActivity extends Activity {
 
         modelValue = addValue(root, "当前模型：");
         refreshModelValue();
+
+        qualityEdit = addEdit(root,
+                "Live2D 画质倍率（0.5~2.0，最高 2.0；1.0 为稳定默认，数值越高清晰度越高但越吃性能）",
+                String.valueOf(sp.getFloat(Live2DDecorView.PREF_RENDER_QUALITY, Live2DDecorView.DEFAULT_RENDER_QUALITY)),
+                true);
+
+        fpsEdit = addEdit(root,
+                "Live2D 帧率（15~60，最高 60；低配车机建议 30 或 45）",
+                String.valueOf(sp.getInt(Live2DDecorView.PREF_TARGET_FPS, Live2DDecorView.DEFAULT_TARGET_FPS)),
+                false);
 
         Button chooseFolder = addButton(root, "选择 Live2D 模型文件夹");
         chooseFolder.setOnClickListener(new View.OnClickListener() {
@@ -100,7 +114,7 @@ public class Live2DSettingsActivity extends Activity {
             }
         });
 
-        Button save = addButton(root, "保存启用状态");
+        Button save = addButton(root, "保存启用状态 / 画质 / 帧率");
         save.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -162,6 +176,31 @@ public class Live2DSettingsActivity extends Activity {
         return value;
     }
 
+    private EditText addEdit(LinearLayout root, String label, String value, boolean allowDecimal) {
+        TextView tv = new TextView(this);
+        tv.setText(label);
+        tv.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+        tv.setTextColor(Color.rgb(70, 70, 70));
+        tv.setGravity(Gravity.BOTTOM | Gravity.LEFT);
+        root.addView(tv, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(54)
+        ));
+
+        EditText edit = new EditText(this);
+        edit.setSingleLine(true);
+        edit.setText(value == null ? "" : value);
+        edit.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
+        edit.setTextColor(Color.rgb(20, 20, 20));
+        edit.setSelectAllOnFocus(true);
+        edit.setPadding(dp(22), 0, dp(22), 0);
+        edit.setBackgroundColor(Color.WHITE);
+        edit.setInputType(allowDecimal
+                ? (InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL)
+                : InputType.TYPE_CLASS_NUMBER);
+        root.addView(edit, rowLp());
+        return edit;
+    }
+
     private Button addButton(LinearLayout root, String text) {
         Button button = new Button(this);
         button.setText(text);
@@ -209,10 +248,19 @@ public class Live2DSettingsActivity extends Activity {
     }
 
     private void saveEnabledState() {
+        float quality = clampFloat(parseFloat(qualityEdit, Live2DDecorView.DEFAULT_RENDER_QUALITY), 0.5f, 2.0f);
+        int fps = clampInt(parseInt(fpsEdit, Live2DDecorView.DEFAULT_TARGET_FPS), 15, 60);
+
         getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE).edit()
                 .putBoolean(Live2DDecorView.PREF_ENABLED, enabledCheck.isChecked())
+                .putFloat(Live2DDecorView.PREF_RENDER_QUALITY, quality)
+                .putInt(Live2DDecorView.PREF_TARGET_FPS, fps)
                 .apply();
-        Toast.makeText(this, "已保存 Live2D 启用状态", Toast.LENGTH_SHORT).show();
+
+        qualityEdit.setText(String.valueOf(quality));
+        fpsEdit.setText(String.valueOf(fps));
+
+        Toast.makeText(this, "已保存 Live2D 设置。回到首页或重新进入调整页后生效", Toast.LENGTH_SHORT).show();
     }
 
     private void resetPosition() {
@@ -308,6 +356,30 @@ public class Live2DSettingsActivity extends Activity {
             return;
         }
         super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private float parseFloat(EditText edit, float fallback) {
+        try {
+            return Float.parseFloat(edit.getText().toString().trim());
+        } catch (Throwable ignored) {
+            return fallback;
+        }
+    }
+
+    private int parseInt(EditText edit, int fallback) {
+        try {
+            return Integer.parseInt(edit.getText().toString().trim());
+        } catch (Throwable ignored) {
+            return fallback;
+        }
+    }
+
+    private float clampFloat(float v, float min, float max) {
+        return Math.max(min, Math.min(max, v));
+    }
+
+    private int clampInt(int v, int min, int max) {
+        return Math.max(min, Math.min(max, v));
     }
 
     private void keepFullscreen() {

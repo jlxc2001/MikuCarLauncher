@@ -20,6 +20,7 @@ public class Live2DAdjustActivity extends Activity {
     private LauncherBackgroundView backgroundView;
     private Live2DDecorView live2DView;
     private Live2DGuideOverlayView guideOverlayView;
+    private boolean firstAdjustLoad = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -81,6 +82,21 @@ public class Live2DAdjustActivity extends Activity {
         });
         bar.addView(reset, new LinearLayout.LayoutParams(dp(220), dp(54)));
 
+        Button reload = new Button(this);
+        reload.setText("重载模型");
+        reload.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
+        reload.setAllCaps(false);
+        reload.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                reloadLive2DForAdjust();
+                Toast.makeText(Live2DAdjustActivity.this, "正在重新加载 Live2D", Toast.LENGTH_SHORT).show();
+            }
+        });
+        LinearLayout.LayoutParams reloadLp = new LinearLayout.LayoutParams(dp(160), dp(54));
+        reloadLp.setMargins(dp(16), 0, 0, 0);
+        bar.addView(reload, reloadLp);
+
         Button done = new Button(this);
         done.setText("完成");
         done.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
@@ -116,6 +132,7 @@ public class Live2DAdjustActivity extends Activity {
                 guideOverlayView.bringToFront();
                 hint.bringToFront();
                 bar.bringToFront();
+                scheduleInitialAdjustReload();
             }
         });
     }
@@ -128,8 +145,12 @@ public class Live2DAdjustActivity extends Activity {
             backgroundView.invalidate();
         }
         if (live2DView != null) {
+            live2DView.resumeLive2D();
             live2DView.applySettings();
             live2DView.setVisibility(View.VISIBLE);
+            if (firstAdjustLoad && rootLayout != null) {
+                scheduleInitialAdjustReload();
+            }
         }
         if (guideOverlayView != null) {
             guideOverlayView.invalidate();
@@ -142,8 +163,52 @@ public class Live2DAdjustActivity extends Activity {
         if (hasFocus) {
             keepFullscreen();
             if (live2DView != null) {
+                live2DView.resumeLive2D();
                 live2DView.applySettings();
+                if (firstAdjustLoad) {
+                    scheduleInitialAdjustReload();
+                }
             }
+        }
+    }
+
+    private void scheduleInitialAdjustReload() {
+        if (rootLayout == null || live2DView == null) {
+            return;
+        }
+        firstAdjustLoad = false;
+
+        // 刚导入模型后立刻进调整页时，车机 WebView 偶尔第一次没把模型拉起来。
+        // 这里只在调整页首次进入时做两次延迟重载，不影响后续拖动/缩放。
+        rootLayout.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                reloadLive2DForAdjust();
+            }
+        }, 900L);
+
+        rootLayout.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                if (live2DView != null) {
+                    live2DView.resumeLive2D();
+                    live2DView.applySettings();
+                    live2DView.setVisibility(View.VISIBLE);
+                }
+            }
+        }, 2100L);
+    }
+
+    private void reloadLive2DForAdjust() {
+        if (live2DView == null) {
+            return;
+        }
+        live2DView.setVisibility(View.VISIBLE);
+        live2DView.resumeLive2D();
+        live2DView.reloadLive2D();
+        live2DView.bringToFront();
+        if (guideOverlayView != null) {
+            guideOverlayView.bringToFront();
         }
     }
 

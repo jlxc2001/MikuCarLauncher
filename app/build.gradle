@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 49
-        versionName '0.6.0-live2d-reload-fix'
+        versionCode 51
+        versionName '0.6.2-live2d-quality-fps-adjust-reload'
     }
 
     // GitHub 网页上传不会自动删除旧文件。
