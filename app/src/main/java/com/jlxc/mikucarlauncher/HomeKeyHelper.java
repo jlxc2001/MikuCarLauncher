@@ -16,12 +16,16 @@ public final class HomeKeyHelper {
         }
 
         int keyCode = event.getKeyCode();
-        if (!isHomeKey(keyCode)) {
+        if (!isHomeKey(keyCode) && !isBackKey(keyCode)) {
             return false;
         }
 
         // DOWN 和 UP 都消费掉，避免部分车机重复触发。
+        // 作为 Launcher：返回键不退出、不回到上一个应用，只回到本桌面首页；如果已经在首页则无操作。
         if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) {
+            if (isBackKey(keyCode) && activity instanceof MainActivity && ((MainActivity) activity).isHomePage()) {
+                return true;
+            }
             goHome(activity);
         }
         return true;
@@ -34,9 +38,14 @@ public final class HomeKeyHelper {
                 || keyCode == KeyEvent.KEYCODE_MOVE_HOME;
     }
 
+    public static boolean isBackKey(int keyCode) {
+        return keyCode == KeyEvent.KEYCODE_BACK
+                || keyCode == KeyEvent.KEYCODE_ESCAPE;
+    }
+
     public static void goHome(Activity activity) {
         if (activity instanceof MainActivity) {
-            ((MainActivity) activity).showHomePage();
+            ((MainActivity) activity).showHomePage(false);
             return;
         }
 

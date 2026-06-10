@@ -90,6 +90,23 @@ public class AppDrawerSettingsActivity extends Activity {
             }
         });
 
+        Button rebuildThumbs = addButton(root, "手动更新 APP 缩略图缓存");
+        rebuildThumbs.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                rebuildAppThumbCache();
+            }
+        });
+
+        Button clearThumbs = addButton(root, "清空 APP 缩略图缓存");
+        clearThumbs.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                AppDrawerCacheManager.clearCache(AppDrawerSettingsActivity.this);
+                Toast.makeText(AppDrawerSettingsActivity.this, "已清空 APP 缩略图缓存，下次打开应用抽屉会重新生成", Toast.LENGTH_LONG).show();
+            }
+        });
+
         Button back = addButton(root, "返回车机桌面设置");
         back.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -158,6 +175,20 @@ public class AppDrawerSettingsActivity extends Activity {
         lp.setMargins(0, dp(12), 0, dp(14));
         root.addView(button, lp);
         return button;
+    }
+
+    private void rebuildAppThumbCache() {
+        Toast.makeText(this, "正在后台更新 APP 缩略图缓存…", Toast.LENGTH_SHORT).show();
+        AppDrawerCacheManager.rebuildCacheAsync(this, new AppDrawerCacheManager.RefreshCallback() {
+            @Override
+            public void onFinished(boolean success, int count) {
+                if (success) {
+                    Toast.makeText(AppDrawerSettingsActivity.this, "APP 缩略图缓存已更新：" + count + " 个应用", Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(AppDrawerSettingsActivity.this, "APP 缩略图缓存更新失败", Toast.LENGTH_LONG).show();
+                }
+            }
+        });
     }
 
     private void saveSettings() {

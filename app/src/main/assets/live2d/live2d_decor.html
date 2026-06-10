@@ -54,6 +54,10 @@
   const isNightMode = params.get("night") === "1";
   const nightDimAlpha = Math.max(0, Math.min(85, parseFloat(params.get("dim") || "35") || 0));
 
+  // v58 低配车机优化：降低渲染分辨率和帧率，优先保证模型不被卡没。
+  const renderQuality = Math.max(0.45, Math.min(1.0, parseFloat(params.get("quality") || "0.62") || 0.62));
+  const targetFps = Math.max(12, Math.min(30, parseInt(params.get("fps") || "20", 10) || 20));
+
   let centerX = parseFloat(params.get("cx") || "1448") || 1448;
   let centerY = parseFloat(params.get("cy") || "420") || 420;
   let userScale = parseFloat(params.get("scale") || "1") || 1;
@@ -817,19 +821,43 @@
       throw new Error("Live2D runtime is not ready");
     }
 
+    try {
+      if (PIXI.settings) {
+        PIXI.settings.RESOLUTION = renderQuality;
+        PIXI.settings.SCALE_MODE = PIXI.SCALE_MODES.LINEAR;
+      }
+    } catch (e) {}
+
     app = new PIXI.Application({
       view: document.createElement("canvas"),
       width: window.innerWidth,
       height: window.innerHeight,
       transparent: true,
       autoDensity: true,
-      resolution: window.devicePixelRatio || 1,
-      antialias: true
+      resolution: renderQuality,
+      antialias: false,
+      powerPreference: "low-power",
+      backgroundAlpha: 0,
+      preserveDrawingBuffer: false
     });
+
+    try {
+      app.ticker.maxFPS = targetFps;
+      app.ticker.minFPS = 8;
+    } catch (e) {}
 
     const stage = document.getElementById("stage");
     stage.innerHTML = "";
     stage.appendChild(app.view);
+    try {
+      app.view.addEventListener("webglcontextlost", function(e) {
+        try { e.preventDefault(); } catch (_) {}
+        showMsg("Live2D 渲染被系统回收，正在等待恢复…");
+      }, false);
+      app.view.addEventListener("webglcontextrestored", function() {
+        try { location.reload(); } catch (_) {}
+      }, false);
+    } catch (e) {}
     applyNightDimFilter();
 
     const Live2DModel = PIXI.live2d.Live2DModel;

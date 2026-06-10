@@ -29,6 +29,7 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
+import android.graphics.drawable.BitmapDrawable;
 import android.text.InputType;
 import android.text.TextUtils;
 import android.util.TypedValue;
@@ -91,6 +92,10 @@ public class LauncherCanvasView extends View {
         commonAppsCache.clear();
         lastCommonAppsLoadTime = 0L;
         invalidate();
+    }
+
+    public void preloadAppDrawerCache() {
+        loadAppsIfNeeded();
     }
 
     // 固定 32:9 车机画布。背景图保持用户指定版本，不做裁切替换。
@@ -182,6 +187,7 @@ public class LauncherCanvasView extends View {
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private boolean appListLoaded = false;
     private boolean appListLoading = false;
+    private boolean appCacheRefreshRunning = false;
     private int appHiddenSignature = 0;
     private int appIconSignature = 0;
 
@@ -259,13 +265,8 @@ public class LauncherCanvasView extends View {
         vehicleDataProvider = new VehicleDataProvider(context);
         weatherProvider = new WeatherProvider(context);
 
-        // 启动后后台预热应用抽屉缓存，避免第一次按“应用”才开始加载。
-        post(new Runnable() {
-            @Override
-            public void run() {
-                loadAppsIfNeeded();
-            }
-        });
+        // v59：不在桌面启动时主动扫描应用，避免低速车规存储导致桌面启动/返回卡顿。
+        // 应用抽屉会优先使用磁盘略缩图缓存；需要刷新时走设置里的手动按钮或安装卸载广播。
 
         vehicleDataProvider.start();
         weatherProvider.start();
@@ -2550,8 +2551,26 @@ public class LauncherCanvasView extends View {
         final int hiddenSignature = hidden.hashCode();
         final int iconSignature = IconPackManager.getIconSignature(getContext());
 
-        // 缓存已加载且隐藏列表、图标包/自定义图标/重命名都没变，就直接用缓存。
+        final Context appContext = getContext().getApplicationContext();
+        final Set<String> hiddenSnapshot = new HashSet<String>(hidden);
+
         if (appListLoaded && hiddenSignature == appHiddenSignature && iconSignature == appIconSignature) {
+            return;
+        }
+
+        // 优先读取本地“应用略缩图”缓存。缓存命中时不再现场 loadIcon/query icon pack，低速车规级存储上会快很多。
+        List<AppDrawerCacheManager.CacheEntry> diskCache = AppDrawerCacheManager.loadCachedEntriesFast(
+                appContext, hiddenSignature, iconSignature);
+        if (diskCache != null) {
+            cachedApps.clear();
+            cachedApps.addAll(toAppEntries(appContext, diskCache));
+            appHiddenSignature = hiddenSignature;
+            appIconSignature = iconSignature;
+            lastAppLoadTime = System.currentTimeMillis();
+            appListLoaded = true;
+            appListLoading = false;
+            clampAppDrawerSelectionAfterLoad();
+            invalidate();
             return;
         }
 
@@ -2563,70 +2582,12 @@ public class LauncherCanvasView extends View {
         appHiddenSignature = hiddenSignature;
         appIconSignature = iconSignature;
 
-        final Context appContext = getContext().getApplicationContext();
-        final Set<String> hiddenSnapshot = new HashSet<String>(hidden);
-
         Thread worker = new Thread(new Runnable() {
             @Override
             public void run() {
-                final List<AppEntry> result = new ArrayList<AppEntry>();
-                final PackageManager pm = appContext.getPackageManager();
-
-                try {
-                    Intent queryIntent = new Intent(Intent.ACTION_MAIN, null);
-                    queryIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-                    List<ResolveInfo> apps = pm.queryIntentActivities(queryIntent, 0);
-
-                    final java.util.Map<ResolveInfo, String> labelCache = new java.util.HashMap<ResolveInfo, String>();
-                    for (ResolveInfo info : apps) {
-                        try {
-                            labelCache.put(info, String.valueOf(info.loadLabel(pm)));
-                        } catch (Throwable t) {
-                            labelCache.put(info, "");
-                        }
-                    }
-
-                    Collections.sort(apps, new Comparator<ResolveInfo>() {
-                        @Override
-                        public int compare(ResolveInfo a, ResolveInfo b) {
-                            String la = labelCache.get(a);
-                            String lb = labelCache.get(b);
-                            if (la == null) la = "";
-                            if (lb == null) lb = "";
-                            return la.compareToIgnoreCase(lb);
-                        }
-                    });
-
-                    for (ResolveInfo info : apps) {
-                        if (info == null || info.activityInfo == null) {
-                            continue;
-                        }
-
-                        String label = labelCache.get(info);
-                        if (label == null || label.length() == 0) {
-                            label = String.valueOf(info.loadLabel(pm));
-                        }
-
-                        String pkg = info.activityInfo.packageName;
-                        String cls = info.activityInfo.name;
-                        if (hiddenSnapshot.contains(pkg)) {
-                            continue;
-                        }
-
-                        Drawable icon;
-                        try {
-                            icon = info.loadIcon(pm);
-                        } catch (Throwable t) {
-                            icon = null;
-                        }
-
-                        label = IconPackManager.getLabel(appContext, pkg, cls, label);
-                        icon = IconPackManager.getIcon(appContext, pkg, cls, icon);
-
-                        result.add(new AppEntry(label, pkg, cls, icon));
-                    }
-                } catch (Throwable ignored) {
-                }
+                final List<AppDrawerCacheManager.CacheEntry> rebuilt = AppDrawerCacheManager.rebuildCache(
+                        appContext, hiddenSnapshot, hiddenSignature, iconSignature);
+                final List<AppEntry> result = toAppEntries(appContext, rebuilt);
 
                 mainHandler.post(new Runnable() {
                     @Override
@@ -2641,8 +2602,63 @@ public class LauncherCanvasView extends View {
                     }
                 });
             }
-        }, "MikuCarLauncher-AppDrawerLoader");
+        }, "MikuCarLauncher-AppDrawerThumbCacheBuilder");
 
+        worker.setPriority(Thread.MIN_PRIORITY);
+        worker.start();
+    }
+
+    private List<AppEntry> toAppEntries(Context context, List<AppDrawerCacheManager.CacheEntry> entries) {
+        List<AppEntry> result = new ArrayList<AppEntry>();
+        if (entries == null) {
+            return result;
+        }
+        for (AppDrawerCacheManager.CacheEntry item : entries) {
+            Drawable icon = null;
+            if (item.icon != null) {
+                icon = new BitmapDrawable(context.getResources(), item.icon);
+            }
+            result.add(new AppEntry(item.label, item.pkg, item.cls, icon));
+        }
+        return result;
+    }
+
+    private void refreshAppDrawerCacheInBackgroundIfNeeded(final Context appContext,
+                                                          final Set<String> hiddenSnapshot,
+                                                          final int hiddenSignature,
+                                                          final int iconSignature) {
+        if (appCacheRefreshRunning) {
+            return;
+        }
+        appCacheRefreshRunning = true;
+        Thread worker = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                boolean changed = AppDrawerCacheManager.isPackageSignatureChanged(appContext);
+                final List<AppEntry> refreshed;
+                if (changed) {
+                    refreshed = toAppEntries(appContext, AppDrawerCacheManager.rebuildCache(
+                            appContext, hiddenSnapshot, hiddenSignature, iconSignature));
+                } else {
+                    refreshed = null;
+                }
+
+                mainHandler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        appCacheRefreshRunning = false;
+                        if (refreshed != null) {
+                            cachedApps.clear();
+                            cachedApps.addAll(refreshed);
+                            appListLoaded = true;
+                            appListLoading = false;
+                            clampAppDrawerSelectionAfterLoad();
+                            invalidate();
+                        }
+                    }
+                });
+            }
+        }, "MikuCarLauncher-AppDrawerThumbCacheRefresh");
         worker.setPriority(Thread.MIN_PRIORITY);
         worker.start();
     }

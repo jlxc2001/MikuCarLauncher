@@ -149,6 +149,23 @@ public class DesktopSettingsActivity extends Activity {
             }
         });
 
+        Button rebuildDrawerCache = addButton(root, "手动更新应用列表 / APP 缩略图缓存");
+        rebuildDrawerCache.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                rebuildAppThumbCache();
+            }
+        });
+
+        Button clearDrawerCache = addButton(root, "清空应用列表 / APP 缩略图缓存");
+        clearDrawerCache.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                AppDrawerCacheManager.clearCache(DesktopSettingsActivity.this);
+                Toast.makeText(DesktopSettingsActivity.this, "已清空 APP 缩略图缓存，下次进入应用抽屉会重新生成", Toast.LENGTH_LONG).show();
+            }
+        });
+
         iconPackValue = addValue(root, "应用图标包：");
         Button iconPackSettings = addButton(root, "图标包设置 / 导入第三方图标包");
         iconPackSettings.setOnClickListener(new View.OnClickListener() {
@@ -237,6 +254,20 @@ public class DesktopSettingsActivity extends Activity {
 
         setContentView(scrollView);
         refreshValues();
+    }
+
+    private void rebuildAppThumbCache() {
+        Toast.makeText(this, "正在后台更新 APP 缩略图缓存…", Toast.LENGTH_SHORT).show();
+        AppDrawerCacheManager.rebuildCacheAsync(this, new AppDrawerCacheManager.RefreshCallback() {
+            @Override
+            public void onFinished(boolean success, int count) {
+                if (success) {
+                    Toast.makeText(DesktopSettingsActivity.this, "APP 缩略图缓存已更新：" + count + " 个应用", Toast.LENGTH_LONG).show();
+                } else {
+                    Toast.makeText(DesktopSettingsActivity.this, "APP 缩略图缓存更新失败", Toast.LENGTH_LONG).show();
+                }
+            }
+        });
     }
 
     private TextView addValue(LinearLayout root, String label) {

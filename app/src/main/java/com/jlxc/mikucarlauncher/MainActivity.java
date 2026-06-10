@@ -105,9 +105,8 @@ public class MainActivity extends Activity {
     private void handleMenuClick(int index) {
         switch (index) {
             case 0: // 首页
-                if (launcherView != null) {
-                    launcherView.invalidate();
-                }
+                // 只有用户主动点“首页”按钮时才重载 Live2D，返回键不触发重载。
+                showHomePage(true);
                 break;
 
             case 1: // 导航
@@ -305,21 +304,66 @@ public class MainActivity extends Activity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (intent != null && intent.getBooleanExtra(HomeKeyHelper.EXTRA_GO_HOME, false)) {
-            showHomePage();
+            // 物理 HOME / 子页面 HOME：只回首页，不重载整个桌面。
+            showHomePage(false);
         }
     }
 
     public void showHomePage() {
+        showHomePage(false);
+    }
+
+    public void showHomePage(boolean reloadLive2D) {
         if (launcherView != null) {
             launcherView.showHomePage();
         }
         updateLive2DVisibility();
         updateCard1WidgetVisibility();
+        if (reloadLive2D) {
+            reloadLive2DOnHome();
+        }
+    }
+
+    private void reloadLive2DOnHome() {
+        if (live2DView != null && live2DView.isLive2DEnabled()) {
+            live2DView.reloadLive2D();
+            live2DView.setVisibility(View.VISIBLE);
+        }
+    }
+
+    public boolean isHomePage() {
+        return launcherView == null || launcherView.getActiveIndex() == 0;
+    }
+
+    @Override
+    public void onBackPressed() {
+        // Launcher 语义：返回键只回到首页，首页下返回键无效果，绝不 finish，也不露出上一个 App。
+        if (!isHomePage()) {
+            showHomePage(false);
+        }
+    }
+
+    private boolean consumeLauncherNavigationKey(int keyCode, KeyEvent event) {
+        if (!HomeKeyHelper.isHomeKey(keyCode) && !HomeKeyHelper.isBackKey(keyCode)) {
+            return false;
+        }
+
+        // DOWN / UP 全部消费，避免部分车机在 UP 阶段继续交给系统导致回到上一个 App。
+        if (event == null || event.getAction() == KeyEvent.ACTION_DOWN) {
+            if (HomeKeyHelper.isHomeKey(keyCode)) {
+                showHomePage(false);
+            } else if (HomeKeyHelper.isBackKey(keyCode)) {
+                if (!isHomePage()) {
+                    showHomePage(false);
+                }
+            }
+        }
+        return true;
     }
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (HomeKeyHelper.handle(this, event)) {
+        if (event != null && consumeLauncherNavigationKey(event.getKeyCode(), event)) {
             return true;
         }
         return super.dispatchKeyEvent(event);
@@ -327,11 +371,22 @@ public class MainActivity extends Activity {
 
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (consumeLauncherNavigationKey(keyCode, event)) {
+            return true;
+        }
         if (launcherView != null && launcherView.handleHardwareKey(keyCode)) {
             updateCard1WidgetVisibility();
             return true;
         }
         return super.onKeyDown(keyCode, event);
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        if (consumeLauncherNavigationKey(keyCode, event)) {
+            return true;
+        }
+        return super.onKeyUp(keyCode, event);
     }
 
     @Override
@@ -344,10 +399,9 @@ public class MainActivity extends Activity {
         if (backgroundView != null) {
             backgroundView.invalidate();
         }
-        if (launcherView != null) {
-            launcherView.invalidateAppIconCaches();
-        }
+        // 不在 onResume 主动预加载应用列表，避免从外部 App 返回桌面时低速存储重新扫描导致卡顿。
         if (live2DView != null) {
+            live2DView.resumeLive2D();
             live2DView.applySettings();
         }
         if (rootLayout != null) {
@@ -365,6 +419,9 @@ public class MainActivity extends Activity {
         super.onPause();
         if (appWidgetHost != null) {
             appWidgetHost.stopListening();
+        }
+        if (live2DView != null) {
+            live2DView.pauseLive2D();
         }
     }
 

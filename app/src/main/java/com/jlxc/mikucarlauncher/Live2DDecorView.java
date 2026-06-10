@@ -44,6 +44,7 @@ public class Live2DDecorView extends FrameLayout {
 
     private WebView webView;
     private String lastUrl = "";
+    private int reloadToken = 0;
     private boolean adjustMode = false;
 
     private float downRawX;
@@ -90,6 +91,15 @@ public class Live2DDecorView extends FrameLayout {
         settings.setAllowContentAccess(true);
         settings.setLoadsImagesAutomatically(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
+        // 低配车机优化：减少缓存/缩放开销，WebView Renderer 尽量保持绑定，降低 Live2D 被系统回收后“卡没”的概率。
+        settings.setCacheMode(WebSettings.LOAD_CACHE_ELSE_NETWORK);
+        webView.setInitialScale(100);
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 26) {
+                webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_BOUND, true);
+            }
+        } catch (Throwable ignored) {
+        }
         try {
             settings.setAllowFileAccessFromFileURLs(true);
             settings.setAllowUniversalAccessFromFileURLs(true);
@@ -168,6 +178,33 @@ public class Live2DDecorView extends FrameLayout {
     public void playNextMotion() {
         try {
             webView.evaluateJavascript("window.__mikuLive2DNextMotion && window.__mikuLive2DNextMotion();", null);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    public void reloadLive2D() {
+        try {
+            reloadToken++;
+            lastUrl = "";
+            webView.stopLoading();
+            webView.clearHistory();
+        } catch (Throwable ignored) {
+        }
+        applySettings();
+    }
+
+    public void pauseLive2D() {
+        try {
+            webView.onPause();
+            webView.pauseTimers();
+        } catch (Throwable ignored) {
+        }
+    }
+
+    public void resumeLive2D() {
+        try {
+            webView.resumeTimers();
+            webView.onResume();
         } catch (Throwable ignored) {
         }
     }
@@ -289,7 +326,8 @@ public class Live2DDecorView extends FrameLayout {
                     + "&clip=" + (adjustMode ? "0" : "1")
                     + "&night=" + (night ? "1" : "0")
                     + "&dim=" + URLEncoder.encode(String.valueOf(live2DNightDimAlpha), "UTF-8")
-                    + "&t=" + System.currentTimeMillis();
+                    + "&quality=0.62&fps=20"
+                    + "&reload=" + reloadToken;
         } catch (Throwable t) {
             return "file:///android_asset/live2d/live2d_decor.html";
         }

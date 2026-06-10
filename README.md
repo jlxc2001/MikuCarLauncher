@@ -435,3 +435,18 @@ A4L 车机桌面项目。
 - 应用抽屉加入“APP 略缩图缓存”：首次扫描会把应用图标渲染成 PNG 缓存在应用内部目录，之后优先读取本地略缩图和应用索引，避免每次现场 loadIcon。
 - 应用抽屉缓存会在检测到安装/卸载/更新应用后后台重建；图标包、隐藏应用、重命名变化也会触发重建。
 - 应用抽屉显示设置新增：手动更新 APP 略缩图缓存、清空 APP 略缩图缓存。
+
+
+## v59
+- 修复返回键逻辑：MainActivity 里返回键只回首页；已经在首页时返回键无操作，不再 finish，也不再露出上一个 App。
+- 返回键回首页不会触发 Live2D reload，避免“桌面被重新加载”的感觉；只有点击左侧“首页”按钮才主动 reload Live2D。
+- 增加 onKeyDown / onKeyUp 双重兜底，消费 BACK / ESCAPE / HOME / MOVE_HOME，防止部分车机只在 UP 阶段把返回键交给系统。
+- 去掉 `clearTaskOnLaunch=true`，避免 Launcher 任务栈被系统清理导致返回/回桌面行为异常。
+- 应用抽屉不再在桌面 onResume、窗口聚焦、任意菜单点击时主动预加载/扫描应用。
+- 应用抽屉不再每次打开都后台计算安装列表签名；平时只用缓存，安装/卸载/更新 App 时再由 PackageChangeReceiver 重建缓存。
+- 新增 `PackageChangeReceiver`：监听 PACKAGE_ADDED / PACKAGE_REMOVED / PACKAGE_CHANGED / PACKAGE_REPLACED 后后台更新 APP 缩略图缓存。
+- APP 缩略图缓存增加内存缓存，同一进程内再次打开应用抽屉不再重复读磁盘 PNG。
+- APP 缩略图缓存尺寸从 96dp 降到 72dp，降低车规级慢存储的读取和解码压力。
+- 车机桌面设置主页面直接加入“手动更新应用列表 / APP 缩略图缓存”和“清空应用列表 / APP 缩略图缓存”，不用再进二级菜单找。
+- AppDrawerSettings 文案从“略缩图”统一改成“缩略图”。
+- Live2D 本次不改动，保留 v58 的重载机制。
