@@ -487,3 +487,9 @@ A4L 车机桌面项目。
   - 调整页新增“重载模型”按钮。
   - 从调整页退出再进入仍可正常加载。
 - 保留 v61 的稳定 Live2D 加载逻辑，不重新启用 v58 的 low-power WebGL 参数。
+
+## v63
+- 修复 Live2D 调整页自动重载后，“恢复默认位置 / 重载模型 / 完成”按钮被 Live2D WebView 压到下层，导致无法点击的问题。
+- 调整页重载模型时不再对 Live2DView 执行 bringToFront。
+- 新增 bringAdjustOverlaysToFront()，每次重载、恢复默认、onResume、窗口重新获得焦点后，都会把模拟卡片层、提示文字、底部按钮栏重新置顶。
+- Live2D 首页显示、画质倍率、帧率设置不变。

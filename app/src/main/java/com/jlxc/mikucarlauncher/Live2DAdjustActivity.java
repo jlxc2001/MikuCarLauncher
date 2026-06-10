@@ -20,6 +20,8 @@ public class Live2DAdjustActivity extends Activity {
     private LauncherBackgroundView backgroundView;
     private Live2DDecorView live2DView;
     private Live2DGuideOverlayView guideOverlayView;
+    private TextView hintView;
+    private LinearLayout controlBar;
     private boolean firstAdjustLoad = true;
 
     @Override
@@ -48,13 +50,15 @@ public class Live2DAdjustActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT
         ));
 
-        TextView hint = new TextView(this);
-        hint.setText("拖动人物调整位置，双指捏合调整人物大小。白色半透明块是模拟首页卡片位置。");
-        hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
-        hint.setTextColor(Color.WHITE);
-        hint.setGravity(Gravity.CENTER_VERTICAL);
-        hint.setPadding(dp(28), 0, dp(28), 0);
-        hint.setBackgroundColor(0x99000000);
+        hintView = new TextView(this);
+        hintView.setText("拖动人物调整位置，双指捏合调整人物大小。白色半透明块是模拟首页卡片位置。");
+        hintView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
+        hintView.setTextColor(Color.WHITE);
+        hintView.setGravity(Gravity.CENTER_VERTICAL);
+        hintView.setPadding(dp(28), 0, dp(28), 0);
+        hintView.setBackgroundColor(0x99000000);
+        hintView.setClickable(false);
+        hintView.setFocusable(false);
 
         FrameLayout.LayoutParams hintLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -62,13 +66,15 @@ public class Live2DAdjustActivity extends Activity {
         );
         hintLp.leftMargin = dp(34);
         hintLp.topMargin = dp(24);
-        rootLayout.addView(hint, hintLp);
+        rootLayout.addView(hintView, hintLp);
 
-        LinearLayout bar = new LinearLayout(this);
-        bar.setOrientation(LinearLayout.HORIZONTAL);
-        bar.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(16), 0, dp(16), 0);
-        bar.setBackgroundColor(0x77000000);
+        controlBar = new LinearLayout(this);
+        controlBar.setOrientation(LinearLayout.HORIZONTAL);
+        controlBar.setGravity(Gravity.RIGHT | Gravity.CENTER_VERTICAL);
+        controlBar.setPadding(dp(16), 0, dp(16), 0);
+        controlBar.setBackgroundColor(0x77000000);
+        controlBar.setClickable(true);
+        controlBar.setFocusable(false);
 
         Button reset = new Button(this);
         reset.setText("恢复默认位置");
@@ -80,7 +86,7 @@ public class Live2DAdjustActivity extends Activity {
                 resetPosition();
             }
         });
-        bar.addView(reset, new LinearLayout.LayoutParams(dp(220), dp(54)));
+        controlBar.addView(reset, new LinearLayout.LayoutParams(dp(220), dp(54)));
 
         Button reload = new Button(this);
         reload.setText("重载模型");
@@ -95,7 +101,7 @@ public class Live2DAdjustActivity extends Activity {
         });
         LinearLayout.LayoutParams reloadLp = new LinearLayout.LayoutParams(dp(160), dp(54));
         reloadLp.setMargins(dp(16), 0, 0, 0);
-        bar.addView(reload, reloadLp);
+        controlBar.addView(reload, reloadLp);
 
         Button done = new Button(this);
         done.setText("完成");
@@ -110,7 +116,7 @@ public class Live2DAdjustActivity extends Activity {
         });
         LinearLayout.LayoutParams doneLp = new LinearLayout.LayoutParams(dp(140), dp(54));
         doneLp.setMargins(dp(16), 0, 0, 0);
-        bar.addView(done, doneLp);
+        controlBar.addView(done, doneLp);
 
         FrameLayout.LayoutParams barLp = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.WRAP_CONTENT,
@@ -119,7 +125,7 @@ public class Live2DAdjustActivity extends Activity {
         barLp.gravity = Gravity.RIGHT | Gravity.BOTTOM;
         barLp.rightMargin = dp(34);
         barLp.bottomMargin = dp(24);
-        rootLayout.addView(bar, barLp);
+        rootLayout.addView(controlBar, barLp);
 
         setContentView(rootLayout);
 
@@ -128,10 +134,7 @@ public class Live2DAdjustActivity extends Activity {
             public void run() {
                 live2DView.applySettings();
                 live2DView.setVisibility(View.VISIBLE);
-                live2DView.bringToFront();
-                guideOverlayView.bringToFront();
-                hint.bringToFront();
-                bar.bringToFront();
+                bringAdjustOverlaysToFront();
                 scheduleInitialAdjustReload();
             }
         });
@@ -155,6 +158,7 @@ public class Live2DAdjustActivity extends Activity {
         if (guideOverlayView != null) {
             guideOverlayView.invalidate();
         }
+        bringAdjustOverlaysToFront();
     }
 
     @Override
@@ -168,6 +172,7 @@ public class Live2DAdjustActivity extends Activity {
                 if (firstAdjustLoad) {
                     scheduleInitialAdjustReload();
                 }
+                bringAdjustOverlaysToFront();
             }
         }
     }
@@ -206,9 +211,23 @@ public class Live2DAdjustActivity extends Activity {
         live2DView.setVisibility(View.VISIBLE);
         live2DView.resumeLive2D();
         live2DView.reloadLive2D();
-        live2DView.bringToFront();
+
+        // 关键：重载 WebView 后不能把 Live2DView 放到最上层，
+        // 否则会压住“恢复默认位置 / 重载模型 / 完成”按钮。
+        bringAdjustOverlaysToFront();
+    }
+
+    private void bringAdjustOverlaysToFront() {
         if (guideOverlayView != null) {
             guideOverlayView.bringToFront();
+        }
+        if (hintView != null) {
+            hintView.bringToFront();
+        }
+        if (controlBar != null) {
+            controlBar.bringToFront();
+            controlBar.requestLayout();
+            controlBar.invalidate();
         }
     }
 
@@ -225,6 +244,7 @@ public class Live2DAdjustActivity extends Activity {
         if (live2DView != null) {
             live2DView.applySettings();
         }
+        bringAdjustOverlaysToFront();
         Toast.makeText(this, "已恢复默认位置和大小", Toast.LENGTH_SHORT).show();
     }
 
