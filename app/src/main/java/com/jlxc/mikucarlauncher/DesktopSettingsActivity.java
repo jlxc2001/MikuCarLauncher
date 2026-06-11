@@ -210,6 +210,14 @@ public class DesktopSettingsActivity extends Activity {
             }
         });
 
+        Button uiScaleSettings = addButton(root, "界面比例缩放 / 车机屏幕适配");
+        uiScaleSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(DesktopSettingsActivity.this, UiScaleSettingsActivity.class));
+            }
+        });
+
         dayBackgroundValue = addValue(root, "日间背景图片：");
         Button chooseDayBackground = addButton(root, "更换日间背景图片");
         chooseDayBackground.setOnClickListener(new View.OnClickListener() {

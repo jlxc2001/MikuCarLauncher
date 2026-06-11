@@ -51,6 +51,7 @@
   const designW = parseFloat(params.get("dw") || "2560") || 2560;
   const designH = parseFloat(params.get("dh") || "720") || 720;
   const shouldClipLive2D = params.get("clip") !== "0";
+  const live2DClipBottomDesignYParam = parseFloat(params.get("clipY") || "546.5") || 546.5;
   // v62：画质倍率和帧率可在设置中调节。
   // 画质倍率 1.0 = 当前稳定默认，2.0 = 更清晰但更吃性能。
   const renderQuality = Math.max(0.5, Math.min(2.0, parseFloat(params.get("quality") || "1.0") || 1.0));
@@ -75,7 +76,7 @@
   let isMotionPlaying = false;
 
   // v54：只给 Live2D 模型加遮罩，不遮挡背景、不改变底部卡片形状。
-  const live2DClipBottomDesignY = 546.5;
+  const live2DClipBottomDesignY = live2DClipBottomDesignYParam;
   let live2DMask = null;
 
   // v56：默认待机效果不再用整体缩放/漂浮，而是尽量模拟 ViewerEX 那种参数级待机：

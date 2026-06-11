@@ -278,10 +278,20 @@ public class MainActivity extends Activity {
         float sx = rw / DESIGN_W;
         float sy = rh / DESIGN_H;
 
-        int left = Math.round((CARD1_L + CARD1_WIDGET_INSET) * sx);
-        int top = Math.round((CARD1_T + CARD1_WIDGET_INSET) * sy);
-        int width = Math.round((CARD1_R - CARD1_L - CARD1_WIDGET_INSET * 2f) * sx);
-        int height = Math.round((CARD1_B - CARD1_T - CARD1_WIDGET_INSET * 2f) * sy);
+        android.graphics.RectF widgetRect = UiScaleHelper.toScreenDesignRect(
+                this,
+                new android.graphics.RectF(
+                        CARD1_L + CARD1_WIDGET_INSET,
+                        CARD1_T + CARD1_WIDGET_INSET,
+                        CARD1_R - CARD1_WIDGET_INSET,
+                        CARD1_B - CARD1_WIDGET_INSET
+                )
+        );
+
+        int left = Math.round(widgetRect.left * sx);
+        int top = Math.round(widgetRect.top * sy);
+        int width = Math.max(1, Math.round((widgetRect.right - widgetRect.left) * sx));
+        int height = Math.max(1, Math.round((widgetRect.bottom - widgetRect.top) * sy));
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(width, height);
         lp.leftMargin = left;
@@ -454,6 +464,9 @@ public class MainActivity extends Activity {
             rootLayout.post(new Runnable() {
                 @Override
                 public void run() {
+                    if (launcherView != null) {
+                        launcherView.invalidate();
+                    }
                     updateLive2DVisibility();
                     updateCard1WidgetVisibility();
                 }
@@ -479,6 +492,9 @@ public class MainActivity extends Activity {
             keepFullscreen();
             if (backgroundView != null) {
                 backgroundView.invalidate();
+            }
+            if (launcherView != null) {
+                launcherView.invalidate();
             }
             updateLive2DVisibility();
             positionCard1Widget();

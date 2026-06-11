@@ -458,6 +458,13 @@ public class LauncherCanvasView extends View {
             drawAppBackground(c);
         }
 
+        c.save();
+        UiScaleHelper.applyUiTransform(c, getContext());
+        drawScaledUiDesign(c);
+        c.restore();
+    }
+
+    private void drawScaledUiDesign(Canvas c) {
         // 左侧功能列底板，无论在哪个页面都一直保留。
         c.drawRect(0, 0, sidebarW, DESIGN_H, sidebarPaint);
 
@@ -1873,8 +1880,10 @@ public class LauncherCanvasView extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        float x = event.getX() * DESIGN_W / Math.max(1, getWidth());
-        float y = event.getY() * DESIGN_H / Math.max(1, getHeight());
+        float rawDesignX = event.getX() * DESIGN_W / Math.max(1, getWidth());
+        float rawDesignY = event.getY() * DESIGN_H / Math.max(1, getHeight());
+        float x = UiScaleHelper.toUiX(getContext(), rawDesignX);
+        float y = UiScaleHelper.toUiY(getContext(), rawDesignY);
 
         if (event.getAction() == MotionEvent.ACTION_DOWN) {
             downDesignX = x;

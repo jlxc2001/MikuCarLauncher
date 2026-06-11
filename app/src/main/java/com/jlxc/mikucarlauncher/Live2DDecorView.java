@@ -144,6 +144,10 @@ public class Live2DDecorView extends FrameLayout {
         float centerX = sp.getFloat(PREF_CENTER_X, DEFAULT_CENTER_X);
         float centerY = sp.getFloat(PREF_CENTER_Y, DEFAULT_CENTER_Y);
         float scale = clampFloat(sp.getFloat(PREF_SCALE, DEFAULT_SCALE), MIN_SCALE, MAX_SCALE);
+        float transformedCenterX = UiScaleHelper.toScreenDesignX(getContext(), centerX);
+        float transformedCenterY = UiScaleHelper.toScreenDesignY(getContext(), centerY);
+        float transformedClipY = UiScaleHelper.toScreenDesignY(getContext(), 546.5f);
+        float transformedScale = scale * Math.min(UiScaleHelper.scaleX(getContext()), UiScaleHelper.scaleY(getContext()));
         float renderQuality = clampFloat(sp.getFloat(PREF_RENDER_QUALITY, DEFAULT_RENDER_QUALITY), 0.5f, 2.0f);
         int targetFps = clampInt(sp.getInt(PREF_TARGET_FPS, DEFAULT_TARGET_FPS), 15, 60);
         boolean night = NightModeHelper.isNightMode(getContext());
@@ -154,12 +158,12 @@ public class Live2DDecorView extends FrameLayout {
             return;
         }
 
-        String url = buildViewerUrl(model, centerX, centerY, scale, renderQuality, targetFps, night, live2DNightDimAlpha);
+        String url = buildViewerUrl(model, transformedCenterX, transformedCenterY, transformedScale, renderQuality, targetFps, night, live2DNightDimAlpha, transformedClipY);
         if (!url.equals(lastUrl)) {
             lastUrl = url;
             webView.loadUrl(url);
         } else {
-            sendTransformToJs(centerX, centerY, scale);
+            sendTransformToJs(transformedCenterX, transformedCenterY, transformedScale);
         }
     }
 
@@ -261,7 +265,10 @@ public class Live2DDecorView extends FrameLayout {
                 if (startDist > 4f) {
                     float factor = currentDist / startDist;
                     float nextScale = clampFloat(startScale * factor, MIN_SCALE, MAX_SCALE);
-                    sendTransformToJs(startCenterX, startCenterY, nextScale);
+                    float transformedCenterX = UiScaleHelper.toScreenDesignX(getContext(), startCenterX);
+                    float transformedCenterY = UiScaleHelper.toScreenDesignY(getContext(), startCenterY);
+                    float transformedNextScale = nextScale * Math.min(UiScaleHelper.scaleX(getContext()), UiScaleHelper.scaleY(getContext()));
+                    sendTransformToJs(transformedCenterX, transformedCenterY, transformedNextScale);
                     saveTransform(startCenterX, startCenterY, nextScale);
                 }
             } else if (pointerMode == 1) {
@@ -270,9 +277,12 @@ public class Live2DDecorView extends FrameLayout {
                 if (sx <= 0f) sx = 1f;
                 if (sy <= 0f) sy = 1f;
 
-                float nextX = clampFloat(startCenterX + (event.getRawX() - downRawX) / sx, 0f, DESIGN_W);
-                float nextY = clampFloat(startCenterY + (event.getRawY() - downRawY) / sy, 0f, DESIGN_H);
-                sendTransformToJs(nextX, nextY, startScale);
+                float nextX = clampFloat(startCenterX + (event.getRawX() - downRawX) / sx / Math.max(0.01f, UiScaleHelper.scaleX(getContext())), 0f, DESIGN_W);
+                float nextY = clampFloat(startCenterY + (event.getRawY() - downRawY) / sy / Math.max(0.01f, UiScaleHelper.scaleY(getContext())), 0f, DESIGN_H);
+                float transformedNextX = UiScaleHelper.toScreenDesignX(getContext(), nextX);
+                float transformedNextY = UiScaleHelper.toScreenDesignY(getContext(), nextY);
+                float transformedStartScale = startScale * Math.min(UiScaleHelper.scaleX(getContext()), UiScaleHelper.scaleY(getContext()));
+                sendTransformToJs(transformedNextX, transformedNextY, transformedStartScale);
                 saveTransform(nextX, nextY, startScale);
             } else {
                 // pointerMode == 3：双指缩放后只松开了其中一根手指。
@@ -313,7 +323,7 @@ public class Live2DDecorView extends FrameLayout {
         return (float) Math.sqrt(dx * dx + dy * dy);
     }
 
-    private String buildViewerUrl(String model, float centerX, float centerY, float scale, float renderQuality, int targetFps, boolean night, int live2DNightDimAlpha) {
+    private String buildViewerUrl(String model, float centerX, float centerY, float scale, float renderQuality, int targetFps, boolean night, int live2DNightDimAlpha, float clipY) {
         try {
             return "file:///android_asset/live2d/live2d_decor.html"
                     + "?model=" + URLEncoder.encode(model, "UTF-8")
@@ -322,6 +332,7 @@ public class Live2DDecorView extends FrameLayout {
                     + "&scale=" + URLEncoder.encode(String.valueOf(scale), "UTF-8")
                     + "&dw=2560&dh=720"
                     + "&clip=" + (adjustMode ? "0" : "1")
+                    + "&clipY=" + URLEncoder.encode(String.valueOf(clipY), "UTF-8")
                     + "&quality=" + URLEncoder.encode(String.valueOf(renderQuality), "UTF-8")
                     + "&fps=" + URLEncoder.encode(String.valueOf(targetFps), "UTF-8")
                     + "&night=" + (night ? "1" : "0")

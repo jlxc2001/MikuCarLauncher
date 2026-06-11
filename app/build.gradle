@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 53
-        versionName '0.6.4-live2d-no-flash-night-dim'
+        versionCode 55
+        versionName '0.6.6-auto-ui-scale-adaptation'
     }
 
     // GitHub 网页上传不会自动删除旧文件。
