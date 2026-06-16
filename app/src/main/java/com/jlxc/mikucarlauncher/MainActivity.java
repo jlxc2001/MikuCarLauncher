@@ -4,6 +4,9 @@ import android.app.Activity;
 import android.appwidget.AppWidgetHostView;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProviderInfo;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.IntentFilter;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -40,6 +43,7 @@ public class MainActivity extends Activity {
     private int currentCard1WidgetId = -1;
     private long lastLive2DReloadAt = 0L;
     private boolean pendingLive2DReload = false;
+    private BroadcastReceiver homeKeyReceiver;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

@@ -527,3 +527,7 @@ A4L 车机桌面项目。
   - 失败后降级 Intent.ACTION_DELETE。
   - 再失败打开系统应用详情页，并 Toast 提示。
 - 保留 V64 的 Live2D 夜间变暗、画质/帧率、调整页按钮层级等逻辑。
+
+## v67.1
+- 修复 MainActivity 缺少 BroadcastReceiver / Context / IntentFilter import 和 homeKeyReceiver 字段导致的编译错误。
+- 功能逻辑不变。
