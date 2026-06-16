@@ -39,7 +39,6 @@ public class Live2DGuideOverlayView extends View {
         float sy = getHeight() / DESIGN_H;
         canvas.save();
         canvas.scale(sx, sy);
-        UiScaleHelper.applyUiTransform(canvas, getContext());
 
         canvas.drawRect(0, 0, 190f, DESIGN_H, sidebarPaint);
         drawHintText(canvas, "左侧按钮栏", 42f, 360f);

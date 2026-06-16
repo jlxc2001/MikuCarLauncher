@@ -7,9 +7,13 @@ import android.net.Uri;
 import android.text.TextUtils;
 import android.view.MotionEvent;
 import android.view.View;
+import android.os.Handler;
+import android.os.Looper;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
 import java.net.URLEncoder;
@@ -51,6 +55,13 @@ public class Live2DDecorView extends FrameLayout {
     private int reloadToken = 0;
     private boolean adjustMode = false;
 
+    // v67: Live2D 自愈 watchdog。车机长时间运行后 WebView/Surface 可能空白但 Java 层仍存在。
+    private final Handler watchdogHandler = new Handler(Looper.getMainLooper());
+    private long lastHeartbeatMs = 0L;
+    private long lastPageLoadMs = 0L;
+    private int watchdogReloadCount = 0;
+    private boolean watchdogRunning = false;
+
     private float downRawX;
     private float downRawY;
     private float startCenterX;
@@ -81,6 +92,30 @@ public class Live2DDecorView extends FrameLayout {
         webView.setHorizontalScrollBarEnabled(false);
         webView.setVerticalScrollBarEnabled(false);
         webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                lastPageLoadMs = System.currentTimeMillis();
+                lastHeartbeatMs = lastPageLoadMs;
+                watchdogReloadCount = 0;
+
+                // 页面完成后延迟再同步一次位置，修复偶发错位。
+                watchdogHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        resendCurrentTransform();
+                    }
+                }, 350L);
+                watchdogHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        resendCurrentTransform();
+                    }
+                }, 1500L);
+            }
+        });
+        webView.addJavascriptInterface(new Live2DJsBridge(), "MikuLive2DAndroid");
         webView.setOnTouchListener(new OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -134,6 +169,7 @@ public class Live2DDecorView extends FrameLayout {
     public void applySettings() {
         if (!isLive2DEnabled()) {
             setVisibility(View.GONE);
+            stopWatchdog();
             return;
         }
 
@@ -144,10 +180,6 @@ public class Live2DDecorView extends FrameLayout {
         float centerX = sp.getFloat(PREF_CENTER_X, DEFAULT_CENTER_X);
         float centerY = sp.getFloat(PREF_CENTER_Y, DEFAULT_CENTER_Y);
         float scale = clampFloat(sp.getFloat(PREF_SCALE, DEFAULT_SCALE), MIN_SCALE, MAX_SCALE);
-        float transformedCenterX = UiScaleHelper.toScreenDesignX(getContext(), centerX);
-        float transformedCenterY = UiScaleHelper.toScreenDesignY(getContext(), centerY);
-        float transformedClipY = UiScaleHelper.toScreenDesignY(getContext(), 546.5f);
-        float transformedScale = scale * Math.min(UiScaleHelper.scaleX(getContext()), UiScaleHelper.scaleY(getContext()));
         float renderQuality = clampFloat(sp.getFloat(PREF_RENDER_QUALITY, DEFAULT_RENDER_QUALITY), 0.5f, 2.0f);
         int targetFps = clampInt(sp.getInt(PREF_TARGET_FPS, DEFAULT_TARGET_FPS), 15, 60);
         boolean night = NightModeHelper.isNightMode(getContext());
@@ -158,13 +190,16 @@ public class Live2DDecorView extends FrameLayout {
             return;
         }
 
-        String url = buildViewerUrl(model, transformedCenterX, transformedCenterY, transformedScale, renderQuality, targetFps, night, live2DNightDimAlpha, transformedClipY);
+        String url = buildViewerUrl(model, centerX, centerY, scale, renderQuality, targetFps, night, live2DNightDimAlpha);
         if (!url.equals(lastUrl)) {
             lastUrl = url;
+            lastPageLoadMs = System.currentTimeMillis();
+            lastHeartbeatMs = lastPageLoadMs;
             webView.loadUrl(url);
         } else {
-            sendTransformToJs(transformedCenterX, transformedCenterY, transformedScale);
+            sendTransformToJs(centerX, centerY, scale);
         }
+        startWatchdog();
     }
 
     public void sendTransformToJs(float centerX, float centerY, float scale) {
@@ -187,12 +222,46 @@ public class Live2DDecorView extends FrameLayout {
         try {
             reloadToken++;
             lastUrl = "";
+            lastPageLoadMs = System.currentTimeMillis();
+            lastHeartbeatMs = lastPageLoadMs;
             webView.stopLoading();
             webView.clearHistory();
             // 不清空所有缓存，避免低速存储反而更慢；只让当前页面重新载入。
         } catch (Throwable ignored) {
         }
         applySettings();
+        startWatchdog();
+    }
+
+    public void hardReloadLive2D() {
+        try {
+            reloadToken++;
+            lastUrl = "";
+            lastPageLoadMs = System.currentTimeMillis();
+            lastHeartbeatMs = lastPageLoadMs;
+            webView.stopLoading();
+            webView.loadUrl("about:blank");
+        } catch (Throwable ignored) {
+        }
+        watchdogHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                applySettings();
+            }
+        }, 250L);
+        startWatchdog();
+    }
+
+    public boolean isLive2DHealthy() {
+        if (!isLive2DEnabled() || getVisibility() != View.VISIBLE) {
+            return true;
+        }
+        long now = System.currentTimeMillis();
+        // 刚加载阶段给 WebView 足够时间，避免误判。
+        if (lastPageLoadMs > 0L && now - lastPageLoadMs < 12000L) {
+            return true;
+        }
+        return lastHeartbeatMs > 0L && now - lastHeartbeatMs < 9000L;
     }
 
     public void pauseLive2D() {
@@ -201,6 +270,7 @@ public class Live2DDecorView extends FrameLayout {
             webView.pauseTimers();
         } catch (Throwable ignored) {
         }
+        stopWatchdog();
     }
 
     public void resumeLive2D() {
@@ -208,6 +278,81 @@ public class Live2DDecorView extends FrameLayout {
             webView.resumeTimers();
             webView.onResume();
         } catch (Throwable ignored) {
+        }
+        startWatchdog();
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        startWatchdog();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        stopWatchdog();
+        super.onDetachedFromWindow();
+    }
+
+    private void startWatchdog() {
+        if (watchdogRunning) {
+            return;
+        }
+        watchdogRunning = true;
+        watchdogHandler.postDelayed(watchdogRunnable, 5000L);
+    }
+
+    private void stopWatchdog() {
+        watchdogRunning = false;
+        watchdogHandler.removeCallbacks(watchdogRunnable);
+    }
+
+    private final Runnable watchdogRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!watchdogRunning) {
+                return;
+            }
+
+            if (isLive2DEnabled() && getVisibility() == View.VISIBLE) {
+                long now = System.currentTimeMillis();
+
+                // 定期校正位置，解决偶发显示错位。
+                resendCurrentTransform();
+
+                if (lastPageLoadMs > 0L && now - lastPageLoadMs > 12000L
+                        && (lastHeartbeatMs <= 0L || now - lastHeartbeatMs > 10000L)) {
+                    watchdogReloadCount++;
+                    if (watchdogReloadCount >= 2) {
+                        hardReloadLive2D();
+                        watchdogReloadCount = 0;
+                    } else {
+                        reloadLive2D();
+                    }
+                }
+            }
+
+            watchdogHandler.postDelayed(this, 5000L);
+        }
+    };
+
+    private void resendCurrentTransform() {
+        try {
+            SharedPreferences sp = getContext().getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE);
+            migrateOldFramePrefsIfNeeded(sp);
+            float centerX = sp.getFloat(PREF_CENTER_X, DEFAULT_CENTER_X);
+            float centerY = sp.getFloat(PREF_CENTER_Y, DEFAULT_CENTER_Y);
+            float scale = clampFloat(sp.getFloat(PREF_SCALE, DEFAULT_SCALE), MIN_SCALE, MAX_SCALE);
+            sendTransformToJs(centerX, centerY, scale);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private final class Live2DJsBridge {
+        @JavascriptInterface
+        public void heartbeat(String type) {
+            lastHeartbeatMs = System.currentTimeMillis();
+            watchdogReloadCount = 0;
         }
     }
 
@@ -265,10 +410,7 @@ public class Live2DDecorView extends FrameLayout {
                 if (startDist > 4f) {
                     float factor = currentDist / startDist;
                     float nextScale = clampFloat(startScale * factor, MIN_SCALE, MAX_SCALE);
-                    float transformedCenterX = UiScaleHelper.toScreenDesignX(getContext(), startCenterX);
-                    float transformedCenterY = UiScaleHelper.toScreenDesignY(getContext(), startCenterY);
-                    float transformedNextScale = nextScale * Math.min(UiScaleHelper.scaleX(getContext()), UiScaleHelper.scaleY(getContext()));
-                    sendTransformToJs(transformedCenterX, transformedCenterY, transformedNextScale);
+                    sendTransformToJs(startCenterX, startCenterY, nextScale);
                     saveTransform(startCenterX, startCenterY, nextScale);
                 }
             } else if (pointerMode == 1) {
@@ -277,12 +419,9 @@ public class Live2DDecorView extends FrameLayout {
                 if (sx <= 0f) sx = 1f;
                 if (sy <= 0f) sy = 1f;
 
-                float nextX = clampFloat(startCenterX + (event.getRawX() - downRawX) / sx / Math.max(0.01f, UiScaleHelper.scaleX(getContext())), 0f, DESIGN_W);
-                float nextY = clampFloat(startCenterY + (event.getRawY() - downRawY) / sy / Math.max(0.01f, UiScaleHelper.scaleY(getContext())), 0f, DESIGN_H);
-                float transformedNextX = UiScaleHelper.toScreenDesignX(getContext(), nextX);
-                float transformedNextY = UiScaleHelper.toScreenDesignY(getContext(), nextY);
-                float transformedStartScale = startScale * Math.min(UiScaleHelper.scaleX(getContext()), UiScaleHelper.scaleY(getContext()));
-                sendTransformToJs(transformedNextX, transformedNextY, transformedStartScale);
+                float nextX = clampFloat(startCenterX + (event.getRawX() - downRawX) / sx, 0f, DESIGN_W);
+                float nextY = clampFloat(startCenterY + (event.getRawY() - downRawY) / sy, 0f, DESIGN_H);
+                sendTransformToJs(nextX, nextY, startScale);
                 saveTransform(nextX, nextY, startScale);
             } else {
                 // pointerMode == 3：双指缩放后只松开了其中一根手指。
@@ -323,7 +462,7 @@ public class Live2DDecorView extends FrameLayout {
         return (float) Math.sqrt(dx * dx + dy * dy);
     }
 
-    private String buildViewerUrl(String model, float centerX, float centerY, float scale, float renderQuality, int targetFps, boolean night, int live2DNightDimAlpha, float clipY) {
+    private String buildViewerUrl(String model, float centerX, float centerY, float scale, float renderQuality, int targetFps, boolean night, int live2DNightDimAlpha) {
         try {
             return "file:///android_asset/live2d/live2d_decor.html"
                     + "?model=" + URLEncoder.encode(model, "UTF-8")
@@ -332,7 +471,6 @@ public class Live2DDecorView extends FrameLayout {
                     + "&scale=" + URLEncoder.encode(String.valueOf(scale), "UTF-8")
                     + "&dw=2560&dh=720"
                     + "&clip=" + (adjustMode ? "0" : "1")
-                    + "&clipY=" + URLEncoder.encode(String.valueOf(clipY), "UTF-8")
                     + "&quality=" + URLEncoder.encode(String.valueOf(renderQuality), "UTF-8")
                     + "&fps=" + URLEncoder.encode(String.valueOf(targetFps), "UTF-8")
                     + "&night=" + (night ? "1" : "0")

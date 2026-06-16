@@ -142,13 +142,38 @@ public final class AppActionHelper {
     }
 
     private static void uninstallApp(Context context, String pkg) {
+        if (context == null || pkg == null || pkg.length() == 0) {
+            return;
+        }
+
+        // 车机 ROM 对卸载 Intent 支持不一致：先用新接口，再降级到 ACTION_DELETE，最后打开应用详情。
+        try {
+            Intent intent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE);
+            intent.setData(Uri.parse("package:" + pkg));
+            intent.putExtra(Intent.EXTRA_RETURN_RESULT, false);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+            return;
+        } catch (Throwable ignored) {
+        }
+
         try {
             Intent intent = new Intent(Intent.ACTION_DELETE);
             intent.setData(Uri.parse("package:" + pkg));
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
+            return;
+        } catch (Throwable ignored) {
+        }
+
+        try {
+            Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+            intent.setData(Uri.parse("package:" + pkg));
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            context.startActivity(intent);
+            Toast.makeText(context, "车机未开放卸载界面，已打开软件详情", Toast.LENGTH_LONG).show();
         } catch (Throwable t) {
-            Toast.makeText(context, "无法打开卸载界面", Toast.LENGTH_SHORT).show();
+            Toast.makeText(context, "无法打开卸载界面或软件详情", Toast.LENGTH_LONG).show();
         }
     }
 

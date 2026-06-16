@@ -51,7 +51,6 @@
   const designW = parseFloat(params.get("dw") || "2560") || 2560;
   const designH = parseFloat(params.get("dh") || "720") || 720;
   const shouldClipLive2D = params.get("clip") !== "0";
-  const live2DClipBottomDesignYParam = parseFloat(params.get("clipY") || "546.5") || 546.5;
   // v62：画质倍率和帧率可在设置中调节。
   // 画质倍率 1.0 = 当前稳定默认，2.0 = 更清晰但更吃性能。
   const renderQuality = Math.max(0.5, Math.min(2.0, parseFloat(params.get("quality") || "1.0") || 1.0));
@@ -76,7 +75,7 @@
   let isMotionPlaying = false;
 
   // v54：只给 Live2D 模型加遮罩，不遮挡背景、不改变底部卡片形状。
-  const live2DClipBottomDesignY = live2DClipBottomDesignYParam;
+  const live2DClipBottomDesignY = 546.5;
   let live2DMask = null;
 
   // v56：默认待机效果不再用整体缩放/漂浮，而是尽量模拟 ViewerEX 那种参数级待机：
@@ -204,6 +203,18 @@
       app.view.style.webkitFilter = "none";
     }
   }
+
+  function sendAndroidHeartbeat(type) {
+    try {
+      if (window.MikuLive2DAndroid && window.MikuLive2DAndroid.heartbeat) {
+        window.MikuLive2DAndroid.heartbeat(type || "tick");
+      }
+    } catch (e) {}
+  }
+
+  window.__mikuLive2DForceHeartbeat = function() {
+    sendAndroidHeartbeat("force");
+  };
 
   window.__mikuLive2DUpdate = function(cx, cy, scale) {
     centerX = parseFloat(cx) || centerX;
@@ -863,6 +874,11 @@
 
     applyLayout();
     updateLive2DMask();
+    sendAndroidHeartbeat("loaded");
+
+    window.setInterval(function() {
+      sendAndroidHeartbeat("tick");
+    }, 2000);
 
     window.addEventListener("resize", function() {
       app.renderer.resize(window.innerWidth, window.innerHeight);
@@ -881,6 +897,7 @@
   }
 
   main().catch(function(e) {
+    sendAndroidHeartbeat("error");
     showMsg("Live2D加载失败：" + (e && e.message ? e.message : e));
     document.getElementById("stage").innerHTML = "";
   });

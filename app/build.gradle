@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 55
-        versionName '0.6.6-auto-ui-scale-adaptation'
+        versionCode 56
+        versionName '0.6.7-live2d-watchdog-home-uninstall-fix'
     }
 
     // GitHub 网页上传不会自动删除旧文件。

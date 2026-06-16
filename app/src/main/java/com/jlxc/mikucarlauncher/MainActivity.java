@@ -94,6 +94,7 @@ public class MainActivity extends Activity {
         ));
 
         setContentView(rootLayout);
+        registerHomeKeyReceiver();
 
         rootLayout.post(new Runnable() {
             @Override
@@ -216,6 +217,9 @@ public class MainActivity extends Activity {
 
         boolean shouldShow = launcherView.getActiveIndex() == 0 && live2DView.isLive2DEnabled();
         live2DView.setVisibility(shouldShow ? View.VISIBLE : View.GONE);
+        if (shouldShow && !live2DView.isLive2DHealthy()) {
+            scheduleLive2DReloadIfHome(false, 300L);
+        }
     }
 
     private void updateCard1WidgetVisibility() {
@@ -278,20 +282,10 @@ public class MainActivity extends Activity {
         float sx = rw / DESIGN_W;
         float sy = rh / DESIGN_H;
 
-        android.graphics.RectF widgetRect = UiScaleHelper.toScreenDesignRect(
-                this,
-                new android.graphics.RectF(
-                        CARD1_L + CARD1_WIDGET_INSET,
-                        CARD1_T + CARD1_WIDGET_INSET,
-                        CARD1_R - CARD1_WIDGET_INSET,
-                        CARD1_B - CARD1_WIDGET_INSET
-                )
-        );
-
-        int left = Math.round(widgetRect.left * sx);
-        int top = Math.round(widgetRect.top * sy);
-        int width = Math.max(1, Math.round((widgetRect.right - widgetRect.left) * sx));
-        int height = Math.max(1, Math.round((widgetRect.bottom - widgetRect.top) * sy));
+        int left = Math.round((CARD1_L + CARD1_WIDGET_INSET) * sx);
+        int top = Math.round((CARD1_T + CARD1_WIDGET_INSET) * sy);
+        int width = Math.round((CARD1_R - CARD1_L - CARD1_WIDGET_INSET * 2f) * sx);
+        int height = Math.round((CARD1_B - CARD1_T - CARD1_WIDGET_INSET * 2f) * sy);
 
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(width, height);
         lp.leftMargin = left;
@@ -320,10 +314,9 @@ public class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (intent != null && intent.getBooleanExtra(HomeKeyHelper.EXTRA_GO_HOME, false)) {
-            // 物理 HOME / 子页面 HOME：只回首页，不重载整个桌面。
-            showHomePage(false);
-        }
+        // 作为默认 Launcher 时，系统 HOME 可能以新 Intent 形式拉起已有 singleTask。
+        // 不管是否带 EXTRA_GO_HOME，都回到首页，但不重建桌面、不强制重载 Live2D。
+        showHomePage(false);
     }
 
     public void showHomePage() {
@@ -389,6 +382,45 @@ public class MainActivity extends Activity {
 
     public boolean isHomePage() {
         return launcherView == null || launcherView.getActiveIndex() == 0;
+    }
+
+    private void registerHomeKeyReceiver() {
+        if (homeKeyReceiver != null) {
+            return;
+        }
+        homeKeyReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if (intent == null || !"android.intent.action.CLOSE_SYSTEM_DIALOGS".equals(intent.getAction())) {
+                    return;
+                }
+                String reason = intent.getStringExtra("reason");
+                if ("homekey".equals(reason) || "recentapps".equals(reason)) {
+                    showHomePage(false);
+                }
+            }
+        };
+        try {
+            registerReceiver(homeKeyReceiver, new IntentFilter("android.intent.action.CLOSE_SYSTEM_DIALOGS"));
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private void unregisterHomeKeyReceiver() {
+        if (homeKeyReceiver == null) {
+            return;
+        }
+        try {
+            unregisterReceiver(homeKeyReceiver);
+        } catch (Throwable ignored) {
+        }
+        homeKeyReceiver = null;
+    }
+
+    @Override
+    protected void onDestroy() {
+        unregisterHomeKeyReceiver();
+        super.onDestroy();
     }
 
     @Override
@@ -459,14 +491,14 @@ public class MainActivity extends Activity {
         if (live2DView != null) {
             live2DView.resumeLive2D();
             live2DView.applySettings();
+            if (!live2DView.isLive2DHealthy() && isHomePage()) {
+                live2DView.reloadLive2D();
+            }
         }
         if (rootLayout != null) {
             rootLayout.post(new Runnable() {
                 @Override
                 public void run() {
-                    if (launcherView != null) {
-                        launcherView.invalidate();
-                    }
                     updateLive2DVisibility();
                     updateCard1WidgetVisibility();
                 }
@@ -492,9 +524,6 @@ public class MainActivity extends Activity {
             keepFullscreen();
             if (backgroundView != null) {
                 backgroundView.invalidate();
-            }
-            if (launcherView != null) {
-                launcherView.invalidate();
             }
             updateLive2DVisibility();
             positionCard1Widget();

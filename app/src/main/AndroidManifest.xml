@@ -18,11 +18,6 @@
             android:screenOrientation="landscape"
             android:exported="false" />
         <activity
-            android:name=".UiScaleSettingsActivity"
-            android:screenOrientation="landscape"
-            android:exported="false" />
-
-        <activity
             android:name=".Live2DSettingsActivity"
             android:screenOrientation="landscape"
             android:exported="false" />
