@@ -26,10 +26,10 @@ public class TurnSignalSettingsActivity extends Activity {
     private static final int REQ_PICK_WAV = 6801;
 
     private CheckBox enabledCheck;
+    private CheckBox debugOverlayCheck;
     private TextView wavValue;
-    private EditText leftIndexEdit;
-    private EditText rightIndexEdit;
-    private EditText activeValueEdit;
+    private TextView hookTipValue;
+    private EditText intervalEdit;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,29 +68,22 @@ public class TurnSignalSettingsActivity extends Activity {
         ));
 
         TextView hint = new TextView(this);
-        hint.setText("打左/右转向时循环播放自定义 WAV 文件，停止转向时停止播放。\n"
-                + "屏幕顶部会出现对应方向的闪烁箭头。\n"
-                + "默认读取 baseInfo[67]/[68]，如果实机方向不对或没反应，可以在下面改索引。");
+        hint.setText("v70 已改为内置 Hook 数据服务，不再猜 baseInfo 索引。\n"
+                + "转向状态优先来自 TsCarService：leftTurn code=19，rightTurn code=20。\n"
+                + "如果 TsCarService 不可用，才回退到 baseInfo[17]/[18]。");
         hint.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         hint.setTextColor(Color.rgb(72, 72, 72));
         hint.setGravity(Gravity.CENTER_VERTICAL);
         hint.setSingleLine(false);
         root.addView(hint, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(126)
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(132)
         ));
 
-        enabledCheck = new CheckBox(this);
-        enabledCheck.setText("启用转向音");
-        enabledCheck.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
-        enabledCheck.setTextColor(Color.rgb(28, 28, 28));
-        enabledCheck.setGravity(Gravity.CENTER_VERTICAL);
-        enabledCheck.setPadding(dp(26), 0, dp(26), 0);
-        enabledCheck.setBackgroundColor(Color.WHITE);
-        root.addView(enabledCheck, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(76)
-        ));
+        enabledCheck = addCheck(root, "启用转向音");
+        debugOverlayCheck = addCheck(root, "显示转向调试浮层");
 
         wavValue = addValue(root, "WAV 文件：未选择");
+        hookTipValue = addValue(root, "数据源：Hook 服务");
 
         Button choose = addButton(root, "选择转向音 WAV 文件");
         choose.setOnClickListener(new View.OnClickListener() {
@@ -113,14 +106,11 @@ public class TurnSignalSettingsActivity extends Activity {
             }
         });
 
-        leftIndexEdit = addEdit(root, "左转向 baseInfo 索引（默认 67）",
-                String.valueOf(VehicleDataProvider.DEFAULT_LEFT_TURN_INDEX));
-        rightIndexEdit = addEdit(root, "右转向 baseInfo 索引（默认 68）",
-                String.valueOf(VehicleDataProvider.DEFAULT_RIGHT_TURN_INDEX));
-        activeValueEdit = addEdit(root, "转向激活值（默认 1）",
-                String.valueOf(VehicleDataProvider.DEFAULT_TURN_ACTIVE_VALUE));
+        intervalEdit = addEdit(root, "车辆数据轮询间隔 ms（500~10000；默认 650）",
+                String.valueOf(getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE)
+                        .getInt(VehicleDataProvider.PREF_POLL_INTERVAL_MS, VehicleDataProvider.DEFAULT_POLL_INTERVAL_MS)));
 
-        Button save = addButton(root, "保存转向音设置");
+        Button save = addButton(root, "保存转向音 / 调试 / 轮询设置");
         save.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -128,14 +118,11 @@ public class TurnSignalSettingsActivity extends Activity {
             }
         });
 
-        Button reset = addButton(root, "恢复转向读取默认值");
-        reset.setOnClickListener(new View.OnClickListener() {
+        Button openHook = addButton(root, "查看 Hook 原始数据 / 可读状态");
+        openHook.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                leftIndexEdit.setText(String.valueOf(VehicleDataProvider.DEFAULT_LEFT_TURN_INDEX));
-                rightIndexEdit.setText(String.valueOf(VehicleDataProvider.DEFAULT_RIGHT_TURN_INDEX));
-                activeValueEdit.setText(String.valueOf(VehicleDataProvider.DEFAULT_TURN_ACTIVE_VALUE));
-                saveSettings();
+                startActivity(new Intent(TurnSignalSettingsActivity.this, VehicleHookSettingsActivity.class));
             }
         });
 
@@ -149,6 +136,22 @@ public class TurnSignalSettingsActivity extends Activity {
 
         setContentView(scrollView);
         refreshValues();
+    }
+
+    private CheckBox addCheck(LinearLayout root, String text) {
+        CheckBox check = new CheckBox(this);
+        check.setText(text);
+        check.setTextSize(TypedValue.COMPLEX_UNIT_SP, 22);
+        check.setTextColor(Color.rgb(28, 28, 28));
+        check.setGravity(Gravity.CENTER_VERTICAL);
+        check.setPadding(dp(26), 0, dp(26), 0);
+        check.setBackgroundColor(Color.WHITE);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(76)
+        );
+        lp.setMargins(0, 0, 0, dp(10));
+        root.addView(check, lp);
+        return check;
     }
 
     private void pickWav() {
@@ -180,18 +183,14 @@ public class TurnSignalSettingsActivity extends Activity {
     }
 
     private void saveSettings() {
-        int leftIndex = parseInt(leftIndexEdit, VehicleDataProvider.DEFAULT_LEFT_TURN_INDEX);
-        int rightIndex = parseInt(rightIndexEdit, VehicleDataProvider.DEFAULT_RIGHT_TURN_INDEX);
-        int activeValue = parseInt(activeValueEdit, VehicleDataProvider.DEFAULT_TURN_ACTIVE_VALUE);
-
-        if (leftIndex < 0) leftIndex = VehicleDataProvider.DEFAULT_LEFT_TURN_INDEX;
-        if (rightIndex < 0) rightIndex = VehicleDataProvider.DEFAULT_RIGHT_TURN_INDEX;
+        int interval = parseInt(intervalEdit, VehicleDataProvider.DEFAULT_POLL_INTERVAL_MS);
+        if (interval < 500) interval = 500;
+        if (interval > 10000) interval = 10000;
 
         getSharedPreferences(MainActivity.PREFS, MODE_PRIVATE).edit()
                 .putBoolean(VehicleDataProvider.PREF_TURN_SOUND_ENABLED, enabledCheck.isChecked())
-                .putInt(VehicleDataProvider.PREF_LEFT_TURN_INDEX, leftIndex)
-                .putInt(VehicleDataProvider.PREF_RIGHT_TURN_INDEX, rightIndex)
-                .putInt(VehicleDataProvider.PREF_TURN_ACTIVE_VALUE, activeValue)
+                .putBoolean(VehicleDataProvider.PREF_TURN_DEBUG_OVERLAY, debugOverlayCheck.isChecked())
+                .putInt(VehicleDataProvider.PREF_POLL_INTERVAL_MS, interval)
                 .apply();
 
         refreshValues();
@@ -203,19 +202,19 @@ public class TurnSignalSettingsActivity extends Activity {
         if (enabledCheck != null) {
             enabledCheck.setChecked(sp.getBoolean(VehicleDataProvider.PREF_TURN_SOUND_ENABLED, false));
         }
+        if (debugOverlayCheck != null) {
+            debugOverlayCheck.setChecked(sp.getBoolean(VehicleDataProvider.PREF_TURN_DEBUG_OVERLAY, false));
+        }
         if (wavValue != null) {
             String name = sp.getString(VehicleDataProvider.PREF_TURN_SOUND_NAME, "");
             String uri = sp.getString(VehicleDataProvider.PREF_TURN_SOUND_URI, "");
             wavValue.setText("WAV 文件： " + (uri == null || uri.length() == 0 ? "未选择" : name));
         }
-        if (leftIndexEdit != null) {
-            leftIndexEdit.setText(String.valueOf(sp.getInt(VehicleDataProvider.PREF_LEFT_TURN_INDEX, VehicleDataProvider.DEFAULT_LEFT_TURN_INDEX)));
+        if (hookTipValue != null) {
+            hookTipValue.setText("数据源：TsCarService 优先，失败后回退 baseInfo[17]/[18]");
         }
-        if (rightIndexEdit != null) {
-            rightIndexEdit.setText(String.valueOf(sp.getInt(VehicleDataProvider.PREF_RIGHT_TURN_INDEX, VehicleDataProvider.DEFAULT_RIGHT_TURN_INDEX)));
-        }
-        if (activeValueEdit != null) {
-            activeValueEdit.setText(String.valueOf(sp.getInt(VehicleDataProvider.PREF_TURN_ACTIVE_VALUE, VehicleDataProvider.DEFAULT_TURN_ACTIVE_VALUE)));
+        if (intervalEdit != null) {
+            intervalEdit.setText(String.valueOf(sp.getInt(VehicleDataProvider.PREF_POLL_INTERVAL_MS, VehicleDataProvider.DEFAULT_POLL_INTERVAL_MS)));
         }
     }
 
@@ -229,7 +228,7 @@ public class TurnSignalSettingsActivity extends Activity {
         value.setPadding(dp(26), 0, dp(26), 0);
         value.setBackgroundColor(Color.WHITE);
         root.addView(value, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(82)
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(88)
         ));
         return value;
     }
@@ -252,7 +251,7 @@ public class TurnSignalSettingsActivity extends Activity {
         edit.setTextColor(Color.rgb(20, 20, 20));
         edit.setPadding(dp(22), 0, dp(22), 0);
         edit.setBackgroundColor(Color.WHITE);
-        edit.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_SIGNED);
+        edit.setInputType(InputType.TYPE_CLASS_NUMBER);
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(76)
@@ -294,16 +293,12 @@ public class TurnSignalSettingsActivity extends Activity {
                 int index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);
                 if (index >= 0) {
                     String name = cursor.getString(index);
-                    if (name != null && name.length() > 0) {
-                        return name;
-                    }
+                    if (name != null && name.length() > 0) return name;
                 }
             }
         } catch (Throwable ignored) {
         } finally {
-            if (cursor != null) {
-                cursor.close();
-            }
+            if (cursor != null) cursor.close();
         }
         return fallback == null ? "turn_signal.wav" : fallback;
     }
@@ -328,9 +323,7 @@ public class TurnSignalSettingsActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (HomeKeyHelper.handle(this, event)) {
-            return true;
-        }
+        if (HomeKeyHelper.handle(this, event)) return true;
         return super.dispatchKeyEvent(event);
     }
 }

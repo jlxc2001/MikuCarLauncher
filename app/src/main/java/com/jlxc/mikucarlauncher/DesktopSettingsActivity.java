@@ -39,6 +39,7 @@ public class DesktopSettingsActivity extends Activity {
     private TextView commonAppsValue;
     private TextView weatherValue;
     private TextView turnSignalValue;
+    private TextView vehicleHookValue;
     private TextView dayBackgroundValue;
     private TextView nightBackgroundValue;
     private TextView nightModeValue;
@@ -203,6 +204,15 @@ public class DesktopSettingsActivity extends Activity {
             }
         });
 
+        vehicleHookValue = addValue(root, "车辆 Hook 数据：");
+        Button vehicleHookSettings = addButton(root, "查看 Hook 原始数据 / 可读状态 / 轮询设置");
+        vehicleHookSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(DesktopSettingsActivity.this, VehicleHookSettingsActivity.class));
+            }
+        });
+
         nightModeValue = addValue(root, "夜间模式：");
         Button nightModeSettings = addButton(root, "夜间模式设置");
         nightModeSettings.setOnClickListener(new View.OnClickListener() {
@@ -358,11 +368,13 @@ public class DesktopSettingsActivity extends Activity {
         if (turnSignalValue != null) {
             boolean enabled = sp.getBoolean(VehicleDataProvider.PREF_TURN_SOUND_ENABLED, false);
             String name = sp.getString(VehicleDataProvider.PREF_TURN_SOUND_NAME, "");
-            int li = sp.getInt(VehicleDataProvider.PREF_LEFT_TURN_INDEX, VehicleDataProvider.DEFAULT_LEFT_TURN_INDEX);
-            int ri = sp.getInt(VehicleDataProvider.PREF_RIGHT_TURN_INDEX, VehicleDataProvider.DEFAULT_RIGHT_TURN_INDEX);
             turnSignalValue.setText("转向音： " + (enabled ? "已启用" : "未启用")
                     + "，文件 " + (name == null || name.length() == 0 ? "未选择" : name)
-                    + "，索引 L/R=" + li + "/" + ri);
+                    + "，数据源 TsCarService 优先");
+        }
+        if (vehicleHookValue != null) {
+            int interval = sp.getInt(VehicleDataProvider.PREF_POLL_INTERVAL_MS, VehicleDataProvider.DEFAULT_POLL_INTERVAL_MS);
+            vehicleHookValue.setText("车辆 Hook 数据：轮询 " + interval + "ms，CarInfoService + TsCarService");
         }
         if (nightModeValue != null) {
             int sunrise = sp.getInt(NightModeHelper.PREF_SUNRISE_MIN, NightModeHelper.DEFAULT_SUNRISE_MIN);

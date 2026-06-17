@@ -544,3 +544,52 @@ A4L 车机桌面项目。
   - 设置页允许修改左转索引、右转索引、激活值，方便实机调试。
 - VehicleDataProvider 轮询间隔从 1500ms 调整到 650ms，以便转向反馈更及时。
 - 保留 v67.1 的 Live2D watchdog、HOME 回首页、卸载 fallback 修复。
+
+## v69.1
+- 基于 v68，而不是 v69。
+- 撤销 v69 中错误的 baseInfo[2] 868/876 转向判断。
+- 保留转向音 WAV 选择、循环播放、顶部闪烁箭头。
+- 新增转向调试浮层：
+  - 设置入口：我的 → 车机桌面设置 → 转向音 / 转向提示设置 → 显示转向调试浮层。
+  - 桌面上显示当前 leftTurn/rightTurn、rpm/range、数据来源、关键 baseInfo 值、变化字段 changed。
+- VehicleDataProvider Snapshot 新增 debugText / dataSource。
+- 当前仍使用 baseInfo 手动备用模式，目的是确认 Launcher 读到的数据与 Hook Demo 是否同源。
+- 如果调试浮层里 leftTurn/rightTurn 仍一直 false，而 Demo 为 true，说明 Launcher 还没有接入 Demo Hook 层的真实 parsed leftTurn/rightTurn。
+
+## v70
+- 基于 v69.1 安全调试版继续开发。
+- 内置 Hook 数据服务，不再手动猜转向 baseInfo 索引。
+- VehicleDataProvider 改为同时绑定：
+  - com.ts.MainUI/com.ts.can.carinfo.CarInfoService
+  - com.ts.MainUI/com.ts.tsspeechlib.car.TsCarService
+- 数据解析逻辑按 CarDataHook / VehicleDataCore Demo 迁移：
+  - baseInfo[2] speed
+  - baseInfo[3] rpm
+  - baseInfo[13] rangeKm
+  - baseInfo[17]/[18] left/right turn fallback
+  - baseInfo[19] driver seatbelt
+  - baseInfo[20] high beam
+  - baseInfo[30] fuel level
+  - baseInfo[36] passenger seatbelt
+  - baseInfo[61~64] four doors
+  - baseInfo[65] trunk
+  - baseInfo[66] hood
+  - TsCarService code 17 total mileage
+  - code 18 oil leftover
+  - code 19 left turn
+  - code 20 right turn
+  - code 21 hazard
+  - code 22 speed
+  - code 25 front radar
+  - code 26 rear radar
+- 桌面车辆状态、转向音、转向箭头现在都使用 VehicleDataProvider.Snapshot 的 Hook parsed 数据。
+- 设置新增：
+  - 我的 → 车机桌面设置 → 查看 Hook 原始数据 / 可读状态 / 轮询设置
+  - 可查看原始 baseInfo、frontRadar/rearRadar、可读状态和调试数据
+  - 可调轮询率 500~10000ms，默认 650ms
+- 转向音设置页简化：
+  - WAV 选择
+  - 启用转向音
+  - 显示转向调试浮层
+  - 轮询间隔
+  - 跳转 Hook 数据页面

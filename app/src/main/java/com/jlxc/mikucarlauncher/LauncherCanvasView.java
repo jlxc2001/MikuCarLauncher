@@ -480,6 +480,7 @@ public class LauncherCanvasView extends View {
         }
 
         drawTurnSignalOverlay(c);
+        drawTurnDebugOverlay(c);
     }
 
     private void drawHomeCards(Canvas c) {
@@ -2064,6 +2065,45 @@ public class LauncherCanvasView extends View {
         if (turnSignalState != TurnSignalSoundManager.STATE_NONE) {
             invalidate();
         }
+    }
+
+    private void drawTurnDebugOverlay(Canvas c) {
+        SharedPreferences sp = getContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+        if (!sp.getBoolean(VehicleDataProvider.PREF_TURN_DEBUG_OVERLAY, false)) {
+            return;
+        }
+
+        VehicleDataProvider.Snapshot snapshot = vehicleDataProvider.getSnapshot();
+        Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bg.setColor(isNightMode() ? 0xDD111820 : 0xEFFFFFFF);
+        bg.setStyle(Paint.Style.FILL);
+
+        Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
+        text.setColor(isNightMode() ? Color.WHITE : Color.rgb(20, 20, 20));
+        text.setTextSize(20f);
+        text.setTextAlign(Paint.Align.LEFT);
+
+        RectF box = new RectF(1180f, 112f, 2390f, 260f);
+        c.drawRoundRect(box, 24f, 24f, bg);
+
+        String line1 = "转向调试: ";
+        String line2 = "";
+        String line3 = "";
+        if (snapshot == null || !snapshot.valid) {
+            line1 += "暂无有效车辆数据";
+        } else {
+            line1 += "L=" + snapshot.leftTurnOn + "  R=" + snapshot.rightTurnOn
+                    + "  rpm=" + snapshot.rpm + "  range=" + snapshot.rangeKm
+                    + "  source=" + snapshot.dataSource;
+            String debug = snapshot.debugText == null ? "" : snapshot.debugText;
+            int split = Math.min(debug.length(), 92);
+            line2 = debug.substring(0, split);
+            line3 = debug.length() > split ? debug.substring(split, Math.min(debug.length(), split + 92)) : "";
+        }
+
+        c.drawText(line1, box.left + 26f, box.top + 42f, text);
+        if (line2.length() > 0) c.drawText(line2, box.left + 26f, box.top + 84f, text);
+        if (line3.length() > 0) c.drawText(line3, box.left + 26f, box.top + 124f, text);
     }
 
     private void drawTurnSignalOverlay(Canvas c) {

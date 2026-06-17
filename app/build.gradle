@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 60
-        versionName '0.6.9.1-turn-signal-safe-debug'
+        versionCode 61
+        versionName '0.7.0-hook-vehicle-data'
     }
 
     // GitHub 网页上传不会自动删除旧文件。
