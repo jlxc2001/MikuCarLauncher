@@ -42,6 +42,10 @@
             android:screenOrientation="landscape"
             android:exported="false" />
         <activity
+            android:name=".TurnSignalSettingsActivity"
+            android:screenOrientation="landscape"
+            android:exported="false" />
+        <activity
             android:name=".AppListActivity"
             android:screenOrientation="landscape"
             android:exported="false" />

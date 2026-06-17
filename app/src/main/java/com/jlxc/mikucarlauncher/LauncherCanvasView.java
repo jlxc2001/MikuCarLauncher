@@ -15,6 +15,7 @@ import android.net.Uri;
 import android.provider.Settings;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -138,6 +139,9 @@ public class LauncherCanvasView extends View {
     private final Bitmap weatherUnknownIcon;
     private final VehicleDataProvider vehicleDataProvider;
     private final WeatherProvider weatherProvider;
+    private final TurnSignalSoundManager turnSignalSoundManager;
+    private int turnSignalState = TurnSignalSoundManager.STATE_NONE;
+    private long turnBlinkStartMs = 0L;
     private final String[] labels = {"首页", "导航", "音乐", "车辆", "全景", "应用", "我的"};
     private boolean drawBackgroundLayer = true;
 
@@ -264,12 +268,14 @@ public class LauncherCanvasView extends View {
         weatherUnknownIcon = BitmapFactory.decodeResource(getResources(), R.drawable.weather_unknown);
         vehicleDataProvider = new VehicleDataProvider(context);
         weatherProvider = new WeatherProvider(context);
+        turnSignalSoundManager = new TurnSignalSoundManager(context);
 
         // v59：不在桌面启动时主动扫描应用，避免低速车规存储导致桌面启动/返回卡顿。
         // 应用抽屉会优先使用磁盘略缩图缓存；需要刷新时走设置里的手动按钮或安装卸载广播。
 
         vehicleDataProvider.start();
         weatherProvider.start();
+        mainHandler.post(turnSignalRunnable);
 
         textPaint.setColor(mainTextColor());
         textPaint.setTextSize(24f);
@@ -472,6 +478,8 @@ public class LauncherCanvasView extends View {
         for (int i = 0; i < labels.length; i++) {
             drawMenuItem(c, i);
         }
+
+        drawTurnSignalOverlay(c);
     }
 
     private void drawHomeCards(Canvas c) {
@@ -2019,6 +2027,107 @@ public class LauncherCanvasView extends View {
             }
         }
         return true;
+    }
+
+    private final Runnable turnSignalRunnable = new Runnable() {
+        @Override
+        public void run() {
+            try {
+                updateTurnSignalState();
+            } catch (Throwable ignored) {
+            }
+            mainHandler.postDelayed(this, 220L);
+        }
+    };
+
+    private void updateTurnSignalState() {
+        VehicleDataProvider.Snapshot snapshot = vehicleDataProvider.getSnapshot();
+        int next = TurnSignalSoundManager.STATE_NONE;
+        if (snapshot != null && snapshot.valid) {
+            if (snapshot.leftTurnOn && snapshot.rightTurnOn) {
+                next = TurnSignalSoundManager.STATE_BOTH;
+            } else if (snapshot.leftTurnOn) {
+                next = TurnSignalSoundManager.STATE_LEFT;
+            } else if (snapshot.rightTurnOn) {
+                next = TurnSignalSoundManager.STATE_RIGHT;
+            }
+        }
+
+        if (next != turnSignalState) {
+            turnSignalState = next;
+            turnBlinkStartMs = SystemClock.elapsedRealtime();
+            invalidate();
+        }
+
+        turnSignalSoundManager.update(turnSignalState);
+
+        if (turnSignalState != TurnSignalSoundManager.STATE_NONE) {
+            invalidate();
+        }
+    }
+
+    private void drawTurnSignalOverlay(Canvas c) {
+        if (turnSignalState == TurnSignalSoundManager.STATE_NONE) {
+            return;
+        }
+
+        long elapsed = SystemClock.elapsedRealtime() - turnBlinkStartMs;
+        boolean visible = ((elapsed / 360L) % 2L) == 0L;
+        if (!visible) {
+            return;
+        }
+
+        if (turnSignalState == TurnSignalSoundManager.STATE_LEFT || turnSignalState == TurnSignalSoundManager.STATE_BOTH) {
+            drawTurnArrow(c, true);
+        }
+        if (turnSignalState == TurnSignalSoundManager.STATE_RIGHT || turnSignalState == TurnSignalSoundManager.STATE_BOTH) {
+            drawTurnArrow(c, false);
+        }
+    }
+
+    private void drawTurnArrow(Canvas c, boolean left) {
+        Paint bg = new Paint(Paint.ANTI_ALIAS_FLAG);
+        bg.setColor(isNightMode() ? 0xCC111820 : 0xDDF8FBFF);
+        bg.setStyle(Paint.Style.FILL);
+
+        Paint line = new Paint(Paint.ANTI_ALIAS_FLAG);
+        line.setColor(isNightMode() ? Color.rgb(90, 255, 180) : Color.rgb(0, 180, 95));
+        line.setStyle(Paint.Style.STROKE);
+        line.setStrokeWidth(10f);
+        line.setStrokeCap(Paint.Cap.ROUND);
+        line.setStrokeJoin(Paint.Join.ROUND);
+
+        Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
+        text.setColor(line.getColor());
+        text.setTextAlign(Paint.Align.CENTER);
+        text.setTextSize(28f);
+        text.setFakeBoldText(true);
+
+        float cx = left ? 1220f : 1460f;
+        float cy = 52f;
+        RectF box = new RectF(cx - 120f, 12f, cx + 120f, 100f);
+        c.drawRoundRect(box, 30f, 30f, bg);
+
+        Path arrow = new Path();
+        if (left) {
+            arrow.moveTo(cx - 48f, cy);
+            arrow.lineTo(cx - 6f, cy - 34f);
+            arrow.moveTo(cx - 48f, cy);
+            arrow.lineTo(cx - 6f, cy + 34f);
+            arrow.moveTo(cx - 42f, cy);
+            arrow.lineTo(cx + 58f, cy);
+            c.drawPath(arrow, line);
+            c.drawText("左转", cx, 91f, text);
+        } else {
+            arrow.moveTo(cx + 48f, cy);
+            arrow.lineTo(cx + 6f, cy - 34f);
+            arrow.moveTo(cx + 48f, cy);
+            arrow.lineTo(cx + 6f, cy + 34f);
+            arrow.moveTo(cx + 42f, cy);
+            arrow.lineTo(cx - 58f, cy);
+            c.drawPath(arrow, line);
+            c.drawText("右转", cx, 91f, text);
+        }
     }
 
     private boolean isLive2DClickArea(float x, float y) {

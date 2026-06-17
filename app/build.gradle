@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 57
-        versionName '0.6.7.1-live2d-watchdog-compile-fix'
+        versionCode 58
+        versionName '0.6.8-turn-signal-sound-overlay'
     }
 
     // GitHub 网页上传不会自动删除旧文件。

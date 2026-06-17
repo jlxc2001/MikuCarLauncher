@@ -16,7 +16,18 @@ public class VehicleDataProvider {
     private static final String SERVICE_CLASS = "com.ts.can.carinfo.CarInfoService";
 
     // 低频轮询，避免再次把 MainApp 打崩。
-    private static final long POLL_INTERVAL_MS = 1500L;
+    // 转向音需要比油量/车门更灵敏，适当提高轮询频率；后续如车机不稳，可在设置里关闭转向音。
+    private static final long POLL_INTERVAL_MS = 650L;
+
+    public static final String PREF_TURN_SOUND_ENABLED = "turn_sound_enabled";
+    public static final String PREF_TURN_SOUND_URI = "turn_sound_uri";
+    public static final String PREF_TURN_SOUND_NAME = "turn_sound_name";
+    public static final String PREF_LEFT_TURN_INDEX = "turn_left_index";
+    public static final String PREF_RIGHT_TURN_INDEX = "turn_right_index";
+    public static final String PREF_TURN_ACTIVE_VALUE = "turn_active_value";
+    public static final int DEFAULT_LEFT_TURN_INDEX = 67;
+    public static final int DEFAULT_RIGHT_TURN_INDEX = 68;
+    public static final int DEFAULT_TURN_ACTIVE_VALUE = 1;
 
     private final Context context;
     private final Object lock = new Object();
@@ -135,7 +146,7 @@ public class VehicleDataProvider {
             return;
         }
 
-        snapshot = Snapshot.fromBaseInfo(baseInfo);
+        snapshot = Snapshot.fromBaseInfo(context, baseInfo);
     }
 
     private int[] requestBaseInfo() {
@@ -200,6 +211,8 @@ public class VehicleDataProvider {
         public final boolean rearRightDoorOpen;
         public final boolean trunkOpen;
         public final boolean hoodOpen;
+        public final boolean leftTurnOn;
+        public final boolean rightTurnOn;
         public final long updateElapsedMs;
 
         private Snapshot(
@@ -214,6 +227,8 @@ public class VehicleDataProvider {
                 boolean rearRightDoorOpen,
                 boolean trunkOpen,
                 boolean hoodOpen,
+                boolean leftTurnOn,
+                boolean rightTurnOn,
                 long updateElapsedMs
         ) {
             this.valid = valid;
@@ -227,14 +242,16 @@ public class VehicleDataProvider {
             this.rearRightDoorOpen = rearRightDoorOpen;
             this.trunkOpen = trunkOpen;
             this.hoodOpen = hoodOpen;
+            this.leftTurnOn = leftTurnOn;
+            this.rightTurnOn = rightTurnOn;
             this.updateElapsedMs = updateElapsedMs;
         }
 
         public static Snapshot empty() {
-            return new Snapshot(false, -1, -1, -1, -1, false, false, false, false, false, false, 0L);
+            return new Snapshot(false, -1, -1, -1, -1, false, false, false, false, false, false, false, false, 0L);
         }
 
-        public static Snapshot fromBaseInfo(int[] b) {
+        public static Snapshot fromBaseInfo(Context context, int[] b) {
             int range = safeValue(b, 13);
             int fuel = safeValue(b, 30);
             int speed = safeValue(b, 2);
@@ -248,6 +265,19 @@ public class VehicleDataProvider {
             boolean trunk = valueIsOpen(b, 65);
             boolean hood = valueIsOpen(b, 66);
 
+            int leftIndex = DEFAULT_LEFT_TURN_INDEX;
+            int rightIndex = DEFAULT_RIGHT_TURN_INDEX;
+            int activeValue = DEFAULT_TURN_ACTIVE_VALUE;
+            try {
+                android.content.SharedPreferences sp = context.getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE);
+                leftIndex = sp.getInt(PREF_LEFT_TURN_INDEX, DEFAULT_LEFT_TURN_INDEX);
+                rightIndex = sp.getInt(PREF_RIGHT_TURN_INDEX, DEFAULT_RIGHT_TURN_INDEX);
+                activeValue = sp.getInt(PREF_TURN_ACTIVE_VALUE, DEFAULT_TURN_ACTIVE_VALUE);
+            } catch (Throwable ignored) {
+            }
+            boolean leftTurn = valueEquals(b, leftIndex, activeValue);
+            boolean rightTurn = valueEquals(b, rightIndex, activeValue);
+
             return new Snapshot(
                     true,
                     range,
@@ -260,6 +290,8 @@ public class VehicleDataProvider {
                     rr,
                     trunk,
                     hood,
+                    leftTurn,
+                    rightTurn,
                     SystemClock.elapsedRealtime()
             );
         }
@@ -277,6 +309,10 @@ public class VehicleDataProvider {
 
         private static boolean valueIsOpen(int[] b, int index) {
             return b != null && index >= 0 && index < b.length && b[index] == 1;
+        }
+
+        private static boolean valueEquals(int[] b, int index, int target) {
+            return b != null && index >= 0 && index < b.length && b[index] == target;
         }
     }
 }

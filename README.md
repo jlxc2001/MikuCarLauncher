@@ -531,3 +531,16 @@ A4L 车机桌面项目。
 ## v67.1
 - 修复 MainActivity 缺少 BroadcastReceiver / Context / IntentFilter import 和 homeKeyReceiver 字段导致的编译错误。
 - 功能逻辑不变。
+
+## v68
+- 基于 v67.1 编译修复版继续开发。
+- 新增转向音 / 转向提示功能：
+  - 设置入口：我的 → 车机桌面设置 → 转向音 / 转向提示设置。
+  - 可选择自定义 WAV / audio 文件。
+  - 打左/右转向时循环播放，停止转向时停止播放。
+  - 屏幕顶部显示左转 / 右转闪烁箭头提示。
+- 转向状态读取：
+  - 默认读取 VehicleDataProvider baseInfo[67] / baseInfo[68]，激活值 1。
+  - 设置页允许修改左转索引、右转索引、激活值，方便实机调试。
+- VehicleDataProvider 轮询间隔从 1500ms 调整到 650ms，以便转向反馈更及时。
+- 保留 v67.1 的 Live2D watchdog、HOME 回首页、卸载 fallback 修复。
