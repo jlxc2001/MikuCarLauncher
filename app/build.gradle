@@ -8,8 +8,8 @@ android {
         applicationId 'com.jlxc.mikucarlauncher'
         minSdk 23
         targetSdk 28
-        versionCode 61
-        versionName '0.7.0-hook-vehicle-data'
+        versionCode 63
+        versionName '0.7.1.1-hud-ip-display'
     }
 
     // GitHub 网页上传不会自动删除旧文件。

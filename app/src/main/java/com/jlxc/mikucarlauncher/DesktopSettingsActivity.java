@@ -1,5 +1,10 @@
 package com.jlxc.mikucarlauncher;
 
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.NetworkInterface;
+import java.util.Collections;
+import java.util.List;
 import android.app.Activity;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProviderInfo;
@@ -40,6 +45,7 @@ public class DesktopSettingsActivity extends Activity {
     private TextView weatherValue;
     private TextView turnSignalValue;
     private TextView vehicleHookValue;
+    private TextView hudBroadcastValue;
     private TextView dayBackgroundValue;
     private TextView nightBackgroundValue;
     private TextView nightModeValue;
@@ -213,6 +219,15 @@ public class DesktopSettingsActivity extends Activity {
             }
         });
 
+        hudBroadcastValue = addValue(root, "HUD 局域网广播：");
+        Button hudBroadcastSettings = addButton(root, "HUD 数据广播设置");
+        hudBroadcastSettings.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new Intent(DesktopSettingsActivity.this, HudBroadcastSettingsActivity.class));
+            }
+        });
+
         nightModeValue = addValue(root, "夜间模式：");
         Button nightModeSettings = addButton(root, "夜间模式设置");
         nightModeSettings.setOnClickListener(new View.OnClickListener() {
@@ -375,6 +390,15 @@ public class DesktopSettingsActivity extends Activity {
         if (vehicleHookValue != null) {
             int interval = sp.getInt(VehicleDataProvider.PREF_POLL_INTERVAL_MS, VehicleDataProvider.DEFAULT_POLL_INTERVAL_MS);
             vehicleHookValue.setText("车辆 Hook 数据：轮询 " + interval + "ms，CarInfoService + TsCarService");
+        }
+        if (hudBroadcastValue != null) {
+            boolean enabled = sp.getBoolean(VehicleDataBroadcaster.PREF_HUD_BROADCAST_ENABLED, VehicleDataBroadcaster.DEFAULT_ENABLED);
+            String address = sp.getString(VehicleDataBroadcaster.PREF_HUD_BROADCAST_ADDRESS, VehicleDataBroadcaster.DEFAULT_ADDRESS);
+            int port = sp.getInt(VehicleDataBroadcaster.PREF_HUD_BROADCAST_PORT, VehicleDataBroadcaster.DEFAULT_PORT);
+            int interval = sp.getInt(VehicleDataBroadcaster.PREF_HUD_BROADCAST_INTERVAL_MS, VehicleDataBroadcaster.DEFAULT_INTERVAL_MS);
+            hudBroadcastValue.setText("HUD 局域网广播： " + (enabled ? "已启用" : "未启用")
+                    + "，UDP " + address + ":" + port + "，" + interval + "ms"
+                    + "\n车机IP：" + firstLocalIp());
         }
         if (nightModeValue != null) {
             int sunrise = sp.getInt(NightModeHelper.PREF_SUNRISE_MIN, NightModeHelper.DEFAULT_SUNRISE_MIN);
@@ -667,6 +691,25 @@ public class DesktopSettingsActivity extends Activity {
     private int dp(int value) {
         return Math.round(TypedValue.applyDimension(
                 TypedValue.COMPLEX_UNIT_DIP, value, getResources().getDisplayMetrics()));
+    }
+
+    private String firstLocalIp() {
+        try {
+            List<NetworkInterface> interfaces = Collections.list(NetworkInterface.getNetworkInterfaces());
+            for (NetworkInterface nif : interfaces) {
+                if (nif == null || !nif.isUp() || nif.isLoopback()) {
+                    continue;
+                }
+                List<InetAddress> addresses = Collections.list(nif.getInetAddresses());
+                for (InetAddress addr : addresses) {
+                    if (addr instanceof Inet4Address && !addr.isLoopbackAddress()) {
+                        return addr.getHostAddress();
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return "未获取到";
     }
 
     private void keepFullscreen() {

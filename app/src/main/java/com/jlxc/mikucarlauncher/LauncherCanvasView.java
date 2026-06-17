@@ -140,6 +140,7 @@ public class LauncherCanvasView extends View {
     private final VehicleDataProvider vehicleDataProvider;
     private final WeatherProvider weatherProvider;
     private final TurnSignalSoundManager turnSignalSoundManager;
+    private final VehicleDataBroadcaster vehicleDataBroadcaster;
     private int turnSignalState = TurnSignalSoundManager.STATE_NONE;
     private long turnBlinkStartMs = 0L;
     private final String[] labels = {"首页", "导航", "音乐", "车辆", "全景", "应用", "我的"};
@@ -269,11 +270,13 @@ public class LauncherCanvasView extends View {
         vehicleDataProvider = new VehicleDataProvider(context);
         weatherProvider = new WeatherProvider(context);
         turnSignalSoundManager = new TurnSignalSoundManager(context);
+        vehicleDataBroadcaster = new VehicleDataBroadcaster(context, vehicleDataProvider);
 
         // v59：不在桌面启动时主动扫描应用，避免低速车规存储导致桌面启动/返回卡顿。
         // 应用抽屉会优先使用磁盘略缩图缓存；需要刷新时走设置里的手动按钮或安装卸载广播。
 
         vehicleDataProvider.start();
+        vehicleDataBroadcaster.start();
         weatherProvider.start();
         mainHandler.post(turnSignalRunnable);
 
@@ -2300,6 +2303,9 @@ public class LauncherCanvasView extends View {
         if (vehicleDataProvider != null) {
             vehicleDataProvider.start();
         }
+        if (vehicleDataBroadcaster != null) {
+            vehicleDataBroadcaster.start();
+        }
         if (weatherProvider != null) {
             weatherProvider.start();
         }
@@ -2307,6 +2313,9 @@ public class LauncherCanvasView extends View {
 
     @Override
     protected void onDetachedFromWindow() {
+        if (vehicleDataBroadcaster != null) {
+            vehicleDataBroadcaster.stop();
+        }
         if (vehicleDataProvider != null) {
             vehicleDataProvider.stop();
         }

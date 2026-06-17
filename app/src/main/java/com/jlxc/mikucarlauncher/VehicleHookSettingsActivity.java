@@ -133,6 +133,14 @@ public class VehicleHookSettingsActivity extends Activity {
             }
         });
 
+        Button hudBroadcast = addButton(root, "HUD 数据广播设置");
+        hudBroadcast.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                startActivity(new android.content.Intent(VehicleHookSettingsActivity.this, HudBroadcastSettingsActivity.class));
+            }
+        });
+
         readableValue = addValue(root, "可读状态：等待车辆数据…", dp(390));
         rawValue = addValue(root, "原始 baseInfo：等待车辆数据…", dp(260));
         debugValue = addValue(root, "调试数据：等待车辆数据…", dp(190));

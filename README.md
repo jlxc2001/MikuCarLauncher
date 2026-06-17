@@ -593,3 +593,35 @@ A4L 车机桌面项目。
   - 显示转向调试浮层
   - 轮询间隔
   - 跳转 Hook 数据页面
+
+## v71
+- 基于 V70 稳定版继续开发。
+- 新增 HUD 局域网广播功能：
+  - 使用 VehicleDataProvider.Snapshot 的 Hook parsed 数据。
+  - UDP JSON 广播，默认 255.255.255.255:36970。
+  - 默认启用，默认 200ms 广播一次。
+  - 支持改成指定旧手机 IP 定向发送。
+- 新增 VehicleDataBroadcaster：
+  - protocol=MikuCarHUD
+  - version=1
+  - source=MikuCarLauncher
+  - seq 递增序号
+  - speedKmh / rpm / rangeKm / fuelLevel / totalMileageKm
+  - driverSeatbelt / passengerSeatbelt
+  - doors.frontLeft/frontRight/rearLeft/rearRight/trunk/hood
+  - leftTurn / rightTurn / highBeam / hazard
+  - frontRadar / rearRadar / rawBaseInfo
+  - dataSource / debugText
+- 设置新增：
+  - 我的 → 车机桌面设置 → HUD 数据广播设置
+  - 可开关广播、设置广播地址、端口、广播间隔
+  - 车辆 Hook 数据页面也加入 HUD 广播设置入口
+- Manifest 增加 ACCESS_WIFI_STATE / CHANGE_WIFI_MULTICAST_STATE 兼容部分车机 UDP 广播限制。
+
+## v71.1
+- 基于 V71 HUD UDP 广播版。
+- HUD 数据广播设置页新增“车机当前 IP”显示：
+  - 遍历 NetworkInterface，显示所有非回环 IPv4。
+  - 增加“刷新车机 IP 显示”按钮。
+  - 方便 HUD 接收端在需要手动填写车机 IP 时使用。
+- 车机桌面设置页的 HUD 广播摘要中也显示第一个可用 IPv4。
