@@ -487,10 +487,11 @@ public class LauncherCanvasView extends View {
     }
 
     private void drawHomeCards(Canvas c) {
-        // 首页 1~6 号卡片：已确认布局，除用户明确要求外不再改动。
-        RectF leftCard = new RectF(210f, 35.5f, 730f, 528.5f);
-        RectF rightTopCard = new RectF(748f, 35.5f, 1140f, 350.5f);
-        RectF rightBottomCard = new RectF(748f, 368.5f, 1140f, 528.5f);
+        // 首页 1~6 号卡片：按用户最新确认的 V72.1 布局。
+        // 1号卡片右侧拉长到与4号卡片右侧对齐；2/3号卡片右移到与5号卡片左侧对齐。
+        RectF leftCard = new RectF(210f, 35.5f, 1140f, 528.5f);
+        RectF rightTopCard = new RectF(1158f, 35.5f, 1550f, 350.5f);
+        RectF rightBottomCard = new RectF(1158f, 368.5f, 1550f, 528.5f);
 
         RectF bottomLeftCard = new RectF(210f, 546.5f, 1140f, 684.5f);
         RectF bottomMiddleCard = new RectF(1158f, 546.5f, 1952f, 684.5f);
@@ -617,27 +618,27 @@ public class LauncherCanvasView extends View {
     }
 
     private RectF getMusicCoverRect() {
-        return new RectF(776f, 166f, 878f, 268f);
+        return new RectF(1186f, 166f, 1288f, 268f);
     }
 
     private RectF getMusicPermissionButtonRect() {
-        return new RectF(776f, 154f, 1058f, 210f);
+        return new RectF(1186f, 154f, 1468f, 210f);
     }
 
     private RectF getMusicPrevButtonRect() {
-        return new RectF(770f, 292f, 826f, 346f);
+        return new RectF(1180f, 292f, 1236f, 346f);
     }
 
     private RectF getMusicPlayButtonRect() {
-        return new RectF(916f, 292f, 972f, 346f);
+        return new RectF(1326f, 292f, 1382f, 346f);
     }
 
     private RectF getMusicNextButtonRect() {
-        return new RectF(1062f, 292f, 1118f, 346f);
+        return new RectF(1472f, 292f, 1528f, 346f);
     }
 
     private RectF getMusicOpenButtonRect() {
-        return new RectF(1082f, 46f, 1138f, 92f);
+        return new RectF(1492f, 46f, 1548f, 92f);
     }
 
     private void drawMusicControls(Canvas c, RectF card, boolean playing) {
@@ -1114,12 +1115,12 @@ public class LauncherCanvasView extends View {
         titlePaint.setFakeBoldText(true);
         titlePaint.setTextSize(43f);
         titlePaint.setColor(mainTextColor());
-        drawTextEllipsize(c, hello, 1200f, 142f, titlePaint, 620f);
+        drawTextEllipsize(c, hello, 1600f, 142f, titlePaint, 480f);
 
         subTextPaint.setTextAlign(Paint.Align.LEFT);
         subTextPaint.setTextSize(21f);
         subTextPaint.setColor(subTextColor());
-        drawTextEllipsize(c, signature, 1204f, 184f, subTextPaint, 620f);
+        drawTextEllipsize(c, signature, 1604f, 184f, subTextPaint, 480f);
     }
 
     private String getTimeGreeting() {
@@ -1920,7 +1921,7 @@ public class LauncherCanvasView extends View {
             }
 
             if (activeIndex == 0) {
-                RectF card2 = new RectF(748f, 35.5f, 1140f, 350.5f);
+                RectF card2 = new RectF(1158f, 35.5f, 1550f, 350.5f);
                 if (card2.contains(x, y)) {
                     int pressed = pressedMusicButton;
                     pressedMusicButton = -1;
@@ -1954,7 +1955,7 @@ public class LauncherCanvasView extends View {
                     invalidate();
                 }
 
-                RectF card3 = new RectF(748f, 368.5f, 1140f, 528.5f);
+                RectF card3 = new RectF(1158f, 368.5f, 1550f, 528.5f);
                 // 3号蓝牙电话卡片：整张卡片任意区域点击都打开蓝牙音乐 Activity。
                 if (card3.contains(x, y)) {
                     openBluetoothMusicActivity();
@@ -2150,7 +2151,7 @@ public class LauncherCanvasView extends View {
 
     private boolean isLive2DClickArea(float x, float y) {
         // 覆盖首页中间空白区和建议模型区域，但不覆盖任何已确认功能卡片。
-        return x >= 1145f && x <= 1965f && y >= 120f && y <= 545f;
+        return x >= 1568f && x <= 1965f && y >= 120f && y <= 545f;
     }
 
     private void handleAppDrawerTouch(float x, float y, long durationMs) {

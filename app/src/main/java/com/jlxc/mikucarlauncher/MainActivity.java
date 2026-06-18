@@ -33,7 +33,7 @@ public class MainActivity extends Activity {
     // 1 号卡片坐标：和已确认 UI 保持一致。
     private static final float CARD1_L = 210f;
     private static final float CARD1_T = 35.5f;
-    private static final float CARD1_R = 730f;
+    private static final float CARD1_R = 1140f;
     private static final float CARD1_B = 528.5f;
     private static final float CARD1_WIDGET_INSET = 12f;
 

@@ -43,9 +43,9 @@ public class Live2DGuideOverlayView extends View {
         canvas.drawRect(0, 0, 190f, DESIGN_H, sidebarPaint);
         drawHintText(canvas, "左侧按钮栏", 42f, 360f);
 
-        drawCard(canvas, new RectF(210f, 35.5f, 730f, 528.5f), "1 导航小组件");
-        drawCard(canvas, new RectF(748f, 35.5f, 1140f, 350.5f), "2 音乐");
-        drawCard(canvas, new RectF(748f, 368.5f, 1140f, 528.5f), "3 蓝牙");
+        drawCard(canvas, new RectF(210f, 35.5f, 1140f, 528.5f), "1 导航小组件");
+        drawCard(canvas, new RectF(1158f, 35.5f, 1550f, 350.5f), "2 音乐");
+        drawCard(canvas, new RectF(1158f, 368.5f, 1550f, 528.5f), "3 蓝牙");
         drawCard(canvas, new RectF(210f, 546.5f, 1140f, 684.5f), "4 常用软件");
         drawCard(canvas, new RectF(1158f, 546.5f, 1952f, 684.5f), "5 车辆状态");
         drawCard(canvas, new RectF(1970f, 546.5f, 2396f, 684.5f), "6 天气");

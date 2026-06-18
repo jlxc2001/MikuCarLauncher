@@ -693,3 +693,10 @@ adb shell am broadcast -a com.autonavi.plus.closemap
 adb shell am broadcast -a com.autonavi.plus.showmap --ei x 265 --ei y 50 --ei w 750 --ei h 515 --ei dpi 200
 adb shell am broadcast -a com.autonavi.plus.closemap
 ```
+
+
+## V72.1 布局调整（卡片 1/2/3）
+- 1号卡片右边界由 x=730 调整到 x=1140，与4号卡片右边界对齐。
+- 2号卡片整体右移到 x=1158~1550，左边界与5号卡片左边界对齐。
+- 3号卡片整体右移到 x=1158~1550，左边界与5号卡片左边界对齐。
+- 同步调整了音乐卡片按钮热区、Live2D 空白点击区与首页问候语位置，避免与新布局重叠。
