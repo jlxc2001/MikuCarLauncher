@@ -10,6 +10,10 @@ import android.content.IntentFilter;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.net.Uri;
+import android.provider.Settings;
+import android.widget.TextView;
 import android.os.Bundle;
 import android.view.KeyEvent;
 import android.view.View;
@@ -41,8 +45,13 @@ public class MainActivity extends Activity {
     private RoundedAppWidgetHost appWidgetHost;
     private AppWidgetHostView card1WidgetView;
     private int currentCard1WidgetId = -1;
+    private FrameLayout mapCardContainer;
+    private TextView mapCardHintView;
+    private AmapFloatingCardController amapFloatingCardController;
     private long lastLive2DReloadAt = 0L;
     private boolean pendingLive2DReload = false;
+    private boolean isActivityResumed = false;
+    private boolean hasWindowFocusNow = false;
     private BroadcastReceiver homeKeyReceiver;
 
     @Override
@@ -80,7 +89,7 @@ public class MainActivity extends Activity {
             public void onMenuClick(int index, String label) {
                 handleMenuClick(index);
                 updateLive2DVisibility();
-                updateCard1WidgetVisibility();
+                updateAmapFloatingCardVisibility();
             }
         });
         launcherView.setOnLive2DClickListener(new LauncherCanvasView.OnLive2DClickListener() {
@@ -97,6 +106,24 @@ public class MainActivity extends Activity {
                 FrameLayout.LayoutParams.MATCH_PARENT
         ));
 
+        mapCardContainer = new FrameLayout(this);
+        mapCardContainer.setBackgroundColor(Color.TRANSPARENT);
+        mapCardContainer.setClickable(false);
+        mapCardContainer.setFocusable(false);
+
+        mapCardHintView = new TextView(this);
+        mapCardHintView.setTextSize(18f);
+        mapCardHintView.setTextColor(Color.rgb(120, 120, 120));
+        mapCardHintView.setGravity(android.view.Gravity.CENTER);
+        mapCardHintView.setText("");
+        mapCardContainer.addView(mapCardHintView, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+
+        rootLayout.addView(mapCardContainer);
+        amapFloatingCardController = new AmapFloatingCardController(this, mapCardContainer, AmapFloatingCardController.DEFAULT_INSET_DP);
+
         setContentView(rootLayout);
         registerHomeKeyReceiver();
 
@@ -104,7 +131,7 @@ public class MainActivity extends Activity {
             @Override
             public void run() {
                 updateLive2DVisibility();
-                updateCard1WidgetVisibility();
+                updateAmapFloatingCardVisibility();
             }
         });
     }
@@ -226,54 +253,52 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void updateCard1WidgetVisibility() {
-        if (rootLayout == null || launcherView == null) {
-            return;
-        }
-
-        if (launcherView.getActiveIndex() != 0) {
-            if (card1WidgetView != null) {
-                card1WidgetView.setVisibility(View.GONE);
+    private void updateAmapFloatingCardVisibility() {
+        if (rootLayout == null || launcherView == null || mapCardContainer == null) {
+            if (amapFloatingCardController != null) {
+                amapFloatingCardController.setHomeVisible(false);
             }
             return;
         }
 
-        int widgetId = getSharedPreferences(PREFS, MODE_PRIVATE).getInt(PREF_CARD1_WIDGET_ID, -1);
-        if (widgetId < 0) {
-            removeCard1WidgetView();
+        boolean shouldShow = shouldShowAmapFloatingCardOnHome();
+        if (!shouldShow) {
+            mapCardContainer.setVisibility(View.GONE);
+            if (amapFloatingCardController != null) {
+                amapFloatingCardController.setHomeVisible(false);
+            }
             return;
         }
 
-        AppWidgetProviderInfo info = appWidgetManager.getAppWidgetInfo(widgetId);
-        if (info == null) {
-            removeCard1WidgetView();
-            return;
+        positionMapCardContainer();
+        mapCardContainer.setVisibility(View.VISIBLE);
+        mapCardContainer.bringToFront();
+
+        boolean installed = AmapFloatingCardController.isAmapFloatingInstalled(this);
+        if (mapCardHintView != null) {
+            if (!installed) {
+                mapCardHintView.setText("未安装悬浮版高德地图\n包名：com.autonavi.amapautoys");
+                mapCardHintView.setVisibility(View.VISIBLE);
+            } else {
+                mapCardHintView.setText("");
+                mapCardHintView.setVisibility(View.GONE);
+            }
         }
 
-        if (card1WidgetView == null || currentCard1WidgetId != widgetId) {
-            removeCard1WidgetView();
-            currentCard1WidgetId = widgetId;
-            card1WidgetView = appWidgetHost.createView(this, widgetId, info);
-            card1WidgetView.setAppWidget(widgetId, info);
-            card1WidgetView.setPadding(0, 0, 0, 0);
-            rootLayout.addView(card1WidgetView);
+        if (amapFloatingCardController != null) {
+            amapFloatingCardController.setHomeVisible(installed);
         }
-
-        positionCard1Widget();
-        card1WidgetView.setVisibility(View.VISIBLE);
-        card1WidgetView.bringToFront();
     }
 
-    private void removeCard1WidgetView() {
-        if (card1WidgetView != null && rootLayout != null) {
-            rootLayout.removeView(card1WidgetView);
-        }
-        card1WidgetView = null;
-        currentCard1WidgetId = -1;
+    private boolean shouldShowAmapFloatingCardOnHome() {
+        return isActivityResumed
+                && hasWindowFocusNow
+                && launcherView != null
+                && launcherView.getActiveIndex() == 0;
     }
 
-    private void positionCard1Widget() {
-        if (card1WidgetView == null || rootLayout == null) {
+    private void positionMapCardContainer() {
+        if (mapCardContainer == null || rootLayout == null) {
             return;
         }
 
@@ -294,7 +319,7 @@ public class MainActivity extends Activity {
         FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(width, height);
         lp.leftMargin = left;
         lp.topMargin = top;
-        card1WidgetView.setLayoutParams(lp);
+        mapCardContainer.setLayoutParams(lp);
     }
 
     private void showToast(String msg) {
@@ -332,7 +357,7 @@ public class MainActivity extends Activity {
             launcherView.showHomePage();
         }
         updateLive2DVisibility();
-        updateCard1WidgetVisibility();
+        updateAmapFloatingCardVisibility();
         if (reloadLive2D) {
             reloadLive2DOnHome();
         }
@@ -423,6 +448,11 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        if (amapFloatingCardController != null) {
+            amapFloatingCardController.onPause();
+        } else {
+            AmapFloatingCardController.sendCloseMapBroadcast(this);
+        }
         unregisterHomeKeyReceiver();
         super.onDestroy();
     }
@@ -467,7 +497,7 @@ public class MainActivity extends Activity {
             return true;
         }
         if (launcherView != null && launcherView.handleHardwareKey(keyCode)) {
-            updateCard1WidgetVisibility();
+            updateAmapFloatingCardVisibility();
             return true;
         }
         return super.onKeyDown(keyCode, event);
@@ -484,6 +514,7 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        isActivityResumed = true;
         keepFullscreen();
         if (appWidgetHost != null) {
             appWidgetHost.startListening();
@@ -504,7 +535,7 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     updateLive2DVisibility();
-                    updateCard1WidgetVisibility();
+                    updateAmapFloatingCardVisibility();
                 }
             });
         }
@@ -513,24 +544,30 @@ public class MainActivity extends Activity {
     @Override
     protected void onPause() {
         super.onPause();
+        isActivityResumed = false;
+        hasWindowFocusNow = false;
         if (appWidgetHost != null) {
             appWidgetHost.stopListening();
         }
         if (live2DView != null) {
             live2DView.pauseLive2D();
         }
+        if (amapFloatingCardController != null) {
+            amapFloatingCardController.onPause();
+        }
     }
 
     @Override
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
+        hasWindowFocusNow = hasFocus;
         if (hasFocus) {
             keepFullscreen();
             if (backgroundView != null) {
                 backgroundView.invalidate();
             }
             updateLive2DVisibility();
-            positionCard1Widget();
         }
+        updateAmapFloatingCardVisibility();
     }
 }

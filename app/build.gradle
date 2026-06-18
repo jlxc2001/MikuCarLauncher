@@ -1,4 +1,7 @@
-plugins { id 'com.android.application' }
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
 
 android {
     namespace 'com.jlxc.mikucarlauncher'
@@ -6,10 +9,10 @@ android {
 
     defaultConfig {
         applicationId 'com.jlxc.mikucarlauncher'
-        minSdk 23
+        minSdk 21
         targetSdk 28
-        versionCode 63
-        versionName '0.7.1.1-hud-ip-display'
+        versionCode 67
+        versionName '0.7.2.1-amap-floating-card-settings-preset-home-only-265-50-750-515-dpi200'
     }
 
     // GitHub 网页上传不会自动删除旧文件。

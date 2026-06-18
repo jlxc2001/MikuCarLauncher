@@ -131,16 +131,24 @@ public class DesktopSettingsActivity extends Activity {
             }
         });
 
-        card1WidgetValue = addValue(root, "1号卡片小组件：");
-        Button chooseWidget = addButton(root, "选择 / 更换 1号卡片高德地图小组件");
-        chooseWidget.setOnClickListener(new View.OnClickListener() {
+        card1WidgetValue = addValue(root, "1号卡片悬浮高德：");
+        Button amapFloatingSettings = addButton(root, "1号卡片悬浮高德设置");
+        amapFloatingSettings.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                openBuiltInWidgetPicker();
+                startActivity(new Intent(DesktopSettingsActivity.this, AmapFloatingCardSettingsActivity.class));
             }
         });
 
-        Button clearWidget = addButton(root, "清除 1号卡片小组件");
+        Button overlayPermission = addButton(root, "打开悬浮版高德地图悬浮窗权限设置");
+        overlayPermission.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                AmapFloatingCardController.openAmapOverlayPermissionPage(DesktopSettingsActivity.this);
+            }
+        });
+
+        Button clearWidget = addButton(root, "清除旧版 1号卡片小组件配置");
         clearWidget.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -346,7 +354,11 @@ public class DesktopSettingsActivity extends Activity {
             musicValue.setText("默认音乐软件： " + sp.getString("music_label", "车机蓝牙音乐 / com.ts.MainUI"));
         }
         if (card1WidgetValue != null) {
-            card1WidgetValue.setText("1号卡片小组件： " + sp.getString("card1_widget_label", "未选择"));
+            boolean installed = AmapFloatingCardController.isAmapFloatingInstalled(this);
+            card1WidgetValue.setText("1号卡片悬浮高德： "
+                    + (installed ? "已安装 com.autonavi.amapautoys" : "未安装悬浮版高德地图")
+                    + "，桌面将通过广播 com.autonavi.plus.showmap 伪嵌入"
+                    + "\n" + AmapFloatingCardController.getSettingsSummary(this));
         }
         if (drawerStyleValue != null) {
             int iconSize = sp.getInt("drawer_icon_size_dp", 72);

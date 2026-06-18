@@ -504,9 +504,7 @@ public class LauncherCanvasView extends View {
         c.drawRoundRect(bottomMiddleCard, radius, radius, cardPaint);
         c.drawRoundRect(bottomRightCard, radius, radius, cardPaint);
 
-        if (!hasCard1WidgetConfigured()) {
-            drawCard1WidgetSetupButton(c, leftCard);
-        }
+        drawAmapFloatingCardHint(c, leftCard);
 
         drawMusicPlayerCard(c, rightTopCard);
         drawBluetoothCard(c, rightBottomCard);
@@ -521,36 +519,22 @@ public class LauncherCanvasView extends View {
         }
     }
 
-    private boolean hasCard1WidgetConfigured() {
-        return getContext()
-                .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-                .getInt(MainActivity.PREF_CARD1_WIDGET_ID, -1) >= 0;
-    }
-
-    private RectF getCard1WidgetSetupButtonRect() {
-        return new RectF(292f, 246f, 648f, 318f);
-    }
-
-    private void drawCard1WidgetSetupButton(Canvas c, RectF card) {
+    private void drawAmapFloatingCardHint(Canvas c, RectF card) {
         subTextPaint.setTextAlign(Paint.Align.CENTER);
-        subTextPaint.setTextSize(24f);
-        subTextPaint.setColor(mutedTextColor());
-        c.drawText("未设置高德地图小组件", (card.left + card.right) / 2f, 208f, subTextPaint);
 
-        RectF btn = getCard1WidgetSetupButtonRect();
-        Paint btnPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        btnPaint.setColor(selectedSurfaceColor());
-        c.drawRoundRect(btn, 16f, 16f, btnPaint);
+        boolean installed = AmapFloatingCardController.isAmapFloatingInstalled(getContext());
+        if (!installed) {
+            subTextPaint.setTextSize(24f);
+            subTextPaint.setColor(mutedTextColor());
+            c.drawText("未安装悬浮版高德地图", (card.left + card.right) / 2f, 222f, subTextPaint);
+            subTextPaint.setTextSize(18f);
+            c.drawText("请安装包名 com.autonavi.amapautoys", (card.left + card.right) / 2f, 258f, subTextPaint);
+        } else {
+            subTextPaint.setTextSize(20f);
+            subTextPaint.setColor(mutedTextColor());
+            c.drawText("悬浮高德地图显示区域", (card.left + card.right) / 2f, card.bottom - 38f, subTextPaint);
+        }
 
-        Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
-        stroke.setStyle(Paint.Style.STROKE);
-        stroke.setStrokeWidth(2f);
-        stroke.setColor(accentColor());
-        c.drawRoundRect(btn, 16f, 16f, stroke);
-
-        subTextPaint.setTextSize(24f);
-        subTextPaint.setColor(accentColor());
-        c.drawText("设置小组件", (btn.left + btn.right) / 2f, btn.top + 46f, subTextPaint);
         subTextPaint.setTextAlign(Paint.Align.LEFT);
     }
 
@@ -1931,15 +1915,6 @@ public class LauncherCanvasView extends View {
                     if (menuClickListener != null) {
                         menuClickListener.onMenuClick(i, labels[i]);
                     }
-                    return true;
-                }
-            }
-
-            if (activeIndex == 0 && !hasCard1WidgetConfigured()) {
-                RectF setupBtn = getCard1WidgetSetupButtonRect();
-                if (setupBtn.contains(x, y)) {
-                    Intent intent = new Intent(getContext(), DesktopSettingsActivity.class);
-                    getContext().startActivity(intent);
                     return true;
                 }
             }

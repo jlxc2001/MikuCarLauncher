@@ -16,6 +16,22 @@ A4L 车机桌面项目。
 项目约束：未经用户许可，不删除任何素材文件，不改变已确认 UI。
 
 
+## V72.1 home-only amap floating card patch
+
+- 保留测试机推荐参数：x=265 y=50 w=750 h=515 dpi=200。
+- 高德悬浮窗现在只允许在 MainActivity 首页显示。
+- MainActivity 需要同时满足：Activity 已 resume、窗口有焦点、LauncherCanvasView activeIndex == 0，才会发送 showmap。
+- 进入应用抽屉、我的页、设置页、其它 Activity、外部 App、切后台、失焦、销毁时都会发送 closemap。
+- AmapFloatingCardController 新增 allowShowOnHome 闸门，避免 onResume / onWindowFocusChanged(true) 从非首页误触发 showmap。
+- 修复设置页说明文字中的换行字符串，避免 Java 编译失败。
+
+ADB 调试：
+```bash
+adb shell am broadcast -a com.autonavi.plus.showmap --ei x 265 --ei y 50 --ei w 750 --ei h 515 --ei dpi 200
+adb shell am broadcast -a com.autonavi.plus.closemap
+```
+
+
 ## v17
 
 - 保持已确认主界面 UI 不变。
@@ -625,3 +641,55 @@ A4L 车机桌面项目。
   - 增加“刷新车机 IP 显示”按钮。
   - 方便 HUD 接收端在需要手动填写车机 IP 时使用。
 - 车机桌面设置页的 HUD 广播摘要中也显示第一个可用 IPv4。
+
+## v72
+- 基于 V71.1 稳定版创建新分支。
+- 备份文件：MikuCarLauncher_V71_1_stable_hud_ip_display_backup.zip。
+- 1号卡片不再使用高德 AppWidget，改为悬浮版高德地图“伪嵌入”。
+- 新增 Kotlin 模块 AmapFloatingCardController：
+  - 测量 mapCardContainer 的屏幕绝对坐标。
+  - 支持 insetDp，默认 6dp。
+  - 发送广播 com.autonavi.plus.showmap，extras: x/y/w/h。
+  - onPause / 失焦 / 离开首页时发送 com.autonavi.plus.closemap。
+  - 检测 com.autonavi.amapautoys 是否安装。
+  - 提供打开悬浮版高德地图悬浮窗权限设置的方法。
+  - 提供 Android 8+ TYPE_APPLICATION_OVERLAY、旧版 TYPE_PHONE 类型常量给高德悬浮端参考。
+- MainActivity 新增透明 mapCardContainer，用于测量 1号卡片内地图区域。
+- LauncherCanvasView 1号卡片改为显示悬浮地图提示，未安装 com.autonavi.amapautoys 时提示“未安装悬浮版高德地图”。
+- DesktopSettingsActivity 中 1号卡片设置改为悬浮版高德权限入口，并保留清理旧 AppWidget 配置按钮。
+- adb 调试：
+  - adb shell am broadcast -a com.autonavi.plus.showmap --ei x 100 --ei y 80 --ei w 900 --ei h 500
+  - adb shell am broadcast -a com.autonavi.plus.closemap
+
+
+## V72.1
+
+- 增加“1号卡片悬浮高德设置”页面。
+- 可调节：inset 内缩 dp、X/Y 偏移 px、宽高缩放百分比、强制宽高 px、高德显示 DPI。
+- `AmapFloatingCardController` 改为从 `SharedPreferences` 读取悬浮高德参数。
+- `com.autonavi.plus.showmap` 广播 extras 扩展为 `x / y / w / h / dpi`，旧版高德端不读取 `dpi` 时仍保持兼容。
+- 设置页支持“保存并测试显示悬浮地图”和“关闭悬浮地图”。
+- ADB 调试命令：
+  - `adb shell am broadcast -a com.autonavi.plus.showmap --ei x 100 --ei y 80 --ei w 900 --ei h 500 --ei dpi 240`
+  - `adb shell am broadcast -a com.autonavi.plus.closemap`
+
+
+## V72.1 测试机推荐参数更新
+
+- 已把测试机确认完美的悬浮高德广播参数作为当前推荐默认值：`x=265 y=50 w=750 h=515 dpi=200`。
+- 因 Launcher 侧设置项是基于 1号卡片测量区域进行微调，所以默认设置换算为：
+  - inset 内缩 dp：`0`
+  - X 偏移 px：`43`
+  - Y 偏移 px：`2`
+  - 宽度缩放 %：`100`
+  - 高度缩放 %：`100`
+  - 强制宽度 px：`750`
+  - 强制高度 px：`515`
+  - 高德显示 DPI：`200`
+- “1号卡片悬浮高德设置”页面新增“应用测试机推荐参数（265,50,750,515,DPI200）”。
+- ADB 推荐调试命令：
+
+```bash
+adb shell am broadcast -a com.autonavi.plus.showmap --ei x 265 --ei y 50 --ei w 750 --ei h 515 --ei dpi 200
+adb shell am broadcast -a com.autonavi.plus.closemap
+```
