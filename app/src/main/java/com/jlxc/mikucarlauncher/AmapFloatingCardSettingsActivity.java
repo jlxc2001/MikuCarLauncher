@@ -26,7 +26,7 @@ public class AmapFloatingCardSettingsActivity extends Activity {
     private static final float DESIGN_H = 720f;
     private static final float CARD1_L = 210f;
     private static final float CARD1_T = 35.5f;
-    private static final float CARD1_R = 730f;
+    private static final float CARD1_R = 1140f;
     private static final float CARD1_B = 528.5f;
     private static final float CARD1_WIDGET_INSET = 12f;
 
@@ -89,7 +89,7 @@ public class AmapFloatingCardSettingsActivity extends Activity {
         TextView desc = new TextView(this);
         desc.setText("用于微调 com.autonavi.plus.showmap 广播里的 x / y / w / h / dpi。"
                 + "\n强制宽高为 0 时自动按 1号卡片区域计算；DPI 为 0 时不强制高德显示 DPI。"
-                + "\n当前默认按测试机完美值换算：x=265 y=50 w=750 h=515 dpi=200。"
+                + "\n当前默认按测试机完美值换算：x=225 y=50 w=1125 h=515 dpi=200。"
                 + "\n注意：自动悬浮只会在 Launcher 首页显示；进入本页或其它页面会自动关闭。");
         desc.setTextSize(TypedValue.COMPLEX_UNIT_SP, 20);
         desc.setTextColor(Color.rgb(64, 64, 64));
@@ -120,7 +120,7 @@ public class AmapFloatingCardSettingsActivity extends Activity {
             }
         });
 
-        Button applyRecommended = addButton(root, "应用推荐参数并回首页测试（265,50,750,515,DPI200）");
+        Button applyRecommended = addButton(root, "应用推荐参数并回首页测试（225,50,1125,515,DPI200）");
         applyRecommended.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
@@ -148,7 +148,7 @@ public class AmapFloatingCardSettingsActivity extends Activity {
 
         TextView adb = new TextView(this);
         adb.setText("ADB 调试："
-                + "\nadb shell am broadcast -a com.autonavi.plus.showmap --ei x 265 --ei y 50 --ei w 750 --ei h 515 --ei dpi 200"
+                + "\nadb shell am broadcast -a com.autonavi.plus.showmap --ei x 225 --ei y 50 --ei w 1125 --ei h 515 --ei dpi 200"
                 + "\nadb shell am broadcast -a com.autonavi.plus.closemap");
         adb.setTextSize(TypedValue.COMPLEX_UNIT_SP, 18);
         adb.setTextColor(Color.rgb(38, 38, 38));

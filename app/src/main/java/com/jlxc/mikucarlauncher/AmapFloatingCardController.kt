@@ -40,12 +40,17 @@ class AmapFloatingCardController(
         const val PREF_AMAP_CARD_FORCE_HEIGHT_PX = "amap_card_force_height_px"
         const val PREF_AMAP_CARD_DPI = "amap_card_dpi"
 
+        private const val PREF_AMAP_CARD_PRESET_VERSION = "amap_card_preset_version"
+        private const val CURRENT_PRESET_VERSION = 2
+        private const val OLD_DEFAULT_X_OFFSET_PX = 43
+        private const val OLD_DEFAULT_FORCE_WIDTH_PX = 750
+
         const val DEFAULT_INSET_DP = 0
-        const val DEFAULT_X_OFFSET_PX = 43
+        const val DEFAULT_X_OFFSET_PX = 3
         const val DEFAULT_Y_OFFSET_PX = 2
         const val DEFAULT_WIDTH_SCALE_PERCENT = 100
         const val DEFAULT_HEIGHT_SCALE_PERCENT = 100
-        const val DEFAULT_FORCE_WIDTH_PX = 750
+        const val DEFAULT_FORCE_WIDTH_PX = 1125
         const val DEFAULT_FORCE_HEIGHT_PX = 515
         const val DEFAULT_DPI = 200
 
@@ -107,6 +112,7 @@ class AmapFloatingCardController(
 
         @JvmStatic
         fun readSettings(context: Context): FloatingCardSettings {
+            migrateRecommendedDefaultsIfNeeded(context)
             val sp = context.getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE)
             return FloatingCardSettings(
                 insetDp = sp.getInt(PREF_AMAP_CARD_INSET_DP, DEFAULT_INSET_DP).coerceAtLeast(0),
@@ -120,6 +126,41 @@ class AmapFloatingCardController(
                 forceHeightPx = sp.getInt(PREF_AMAP_CARD_FORCE_HEIGHT_PX, DEFAULT_FORCE_HEIGHT_PX).coerceAtLeast(0),
                 dpi = sp.getInt(PREF_AMAP_CARD_DPI, DEFAULT_DPI).coerceAtLeast(0)
             )
+        }
+
+        private fun migrateRecommendedDefaultsIfNeeded(context: Context) {
+            val sp = context.getSharedPreferences(MainActivity.PREFS, Context.MODE_PRIVATE)
+            if (sp.getInt(PREF_AMAP_CARD_PRESET_VERSION, 0) >= CURRENT_PRESET_VERSION) {
+                return
+            }
+
+            val hasSavedAmapSettings = sp.contains(PREF_AMAP_CARD_X_OFFSET_PX)
+                    || sp.contains(PREF_AMAP_CARD_FORCE_WIDTH_PX)
+                    || sp.contains(PREF_AMAP_CARD_FORCE_HEIGHT_PX)
+                    || sp.contains(PREF_AMAP_CARD_DPI)
+
+            val looksLikeOldRecommended = hasSavedAmapSettings
+                    && sp.getInt(PREF_AMAP_CARD_INSET_DP, DEFAULT_INSET_DP) == DEFAULT_INSET_DP
+                    && sp.getInt(PREF_AMAP_CARD_X_OFFSET_PX, OLD_DEFAULT_X_OFFSET_PX) == OLD_DEFAULT_X_OFFSET_PX
+                    && sp.getInt(PREF_AMAP_CARD_Y_OFFSET_PX, DEFAULT_Y_OFFSET_PX) == DEFAULT_Y_OFFSET_PX
+                    && sp.getInt(PREF_AMAP_CARD_WIDTH_SCALE_PERCENT, DEFAULT_WIDTH_SCALE_PERCENT) == DEFAULT_WIDTH_SCALE_PERCENT
+                    && sp.getInt(PREF_AMAP_CARD_HEIGHT_SCALE_PERCENT, DEFAULT_HEIGHT_SCALE_PERCENT) == DEFAULT_HEIGHT_SCALE_PERCENT
+                    && sp.getInt(PREF_AMAP_CARD_FORCE_WIDTH_PX, OLD_DEFAULT_FORCE_WIDTH_PX) == OLD_DEFAULT_FORCE_WIDTH_PX
+                    && sp.getInt(PREF_AMAP_CARD_FORCE_HEIGHT_PX, DEFAULT_FORCE_HEIGHT_PX) == DEFAULT_FORCE_HEIGHT_PX
+                    && sp.getInt(PREF_AMAP_CARD_DPI, DEFAULT_DPI) == DEFAULT_DPI
+
+            val editor = sp.edit().putInt(PREF_AMAP_CARD_PRESET_VERSION, CURRENT_PRESET_VERSION)
+            if (looksLikeOldRecommended) {
+                editor.putInt(PREF_AMAP_CARD_INSET_DP, DEFAULT_INSET_DP)
+                    .putInt(PREF_AMAP_CARD_X_OFFSET_PX, DEFAULT_X_OFFSET_PX)
+                    .putInt(PREF_AMAP_CARD_Y_OFFSET_PX, DEFAULT_Y_OFFSET_PX)
+                    .putInt(PREF_AMAP_CARD_WIDTH_SCALE_PERCENT, DEFAULT_WIDTH_SCALE_PERCENT)
+                    .putInt(PREF_AMAP_CARD_HEIGHT_SCALE_PERCENT, DEFAULT_HEIGHT_SCALE_PERCENT)
+                    .putInt(PREF_AMAP_CARD_FORCE_WIDTH_PX, DEFAULT_FORCE_WIDTH_PX)
+                    .putInt(PREF_AMAP_CARD_FORCE_HEIGHT_PX, DEFAULT_FORCE_HEIGHT_PX)
+                    .putInt(PREF_AMAP_CARD_DPI, DEFAULT_DPI)
+            }
+            editor.apply()
         }
 
         @JvmStatic

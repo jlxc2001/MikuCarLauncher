@@ -2118,34 +2118,39 @@ public class LauncherCanvasView extends View {
 
         Paint text = new Paint(Paint.ANTI_ALIAS_FLAG);
         text.setColor(line.getColor());
-        text.setTextAlign(Paint.Align.CENTER);
+        text.setTextAlign(Paint.Align.LEFT);
         text.setTextSize(28f);
         text.setFakeBoldText(true);
 
         float cx = left ? 1220f : 1460f;
-        float cy = 52f;
-        RectF box = new RectF(cx - 120f, 12f, cx + 120f, 100f);
+        RectF box = new RectF(cx - 130f, 12f, cx + 130f, 100f);
         c.drawRoundRect(box, 30f, 30f, bg);
+
+        // 将图标和文字左右分离，避免“左转/右转”与箭头重叠。
+        float arrowCx = box.left + 68f;
+        float arrowCy = 56f;
+        float textX = box.left + 122f;
+        float textY = 67f;
 
         Path arrow = new Path();
         if (left) {
-            arrow.moveTo(cx - 48f, cy);
-            arrow.lineTo(cx - 6f, cy - 34f);
-            arrow.moveTo(cx - 48f, cy);
-            arrow.lineTo(cx - 6f, cy + 34f);
-            arrow.moveTo(cx - 42f, cy);
-            arrow.lineTo(cx + 58f, cy);
+            arrow.moveTo(arrowCx - 26f, arrowCy);
+            arrow.lineTo(arrowCx + 8f, arrowCy - 28f);
+            arrow.moveTo(arrowCx - 26f, arrowCy);
+            arrow.lineTo(arrowCx + 8f, arrowCy + 28f);
+            arrow.moveTo(arrowCx - 20f, arrowCy);
+            arrow.lineTo(arrowCx + 62f, arrowCy);
             c.drawPath(arrow, line);
-            c.drawText("左转", cx, 91f, text);
+            c.drawText("左转", textX, textY, text);
         } else {
-            arrow.moveTo(cx + 48f, cy);
-            arrow.lineTo(cx + 6f, cy - 34f);
-            arrow.moveTo(cx + 48f, cy);
-            arrow.lineTo(cx + 6f, cy + 34f);
-            arrow.moveTo(cx + 42f, cy);
-            arrow.lineTo(cx - 58f, cy);
+            arrow.moveTo(arrowCx + 26f, arrowCy);
+            arrow.lineTo(arrowCx - 8f, arrowCy - 28f);
+            arrow.moveTo(arrowCx + 26f, arrowCy);
+            arrow.lineTo(arrowCx - 8f, arrowCy + 28f);
+            arrow.moveTo(arrowCx + 20f, arrowCy);
+            arrow.lineTo(arrowCx - 62f, arrowCy);
             c.drawPath(arrow, line);
-            c.drawText("右转", cx, 91f, text);
+            c.drawText("右转", textX, textY, text);
         }
     }
 
